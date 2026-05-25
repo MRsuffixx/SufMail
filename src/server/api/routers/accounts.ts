@@ -292,7 +292,6 @@ export const accountsRouter = createTRPCRouter({
     )
     .mutation(async ({ ctx, input }) => {
       const { session } = ctx;
-      let account: Parameters<typeof ImapService["prototype"]["testConnection"]> extends [] ? never : ConstructorParameters<typeof ImapService>[0];
 
       if (input.id) {
         const found = await db.mailAccount.findFirst({
@@ -300,44 +299,45 @@ export const accountsRouter = createTRPCRouter({
         });
         if (!found)
           throw new TRPCError({ code: "NOT_FOUND", message: "Mail account not found" });
-        account = found;
-      } else {
-        if (!input.email || !input.imapPassword || !input.imapHost) {
-          throw new TRPCError({
-            code: "BAD_REQUEST",
-            message: "email, imapPassword, and imapHost are required",
-          });
-        }
-
-        // Create a temporary account object for testing
-        const tempCreds = encryptObject<StoredCredentials>({
-          imapPassword: input.imapPassword,
-          smtpPassword: input.imapPassword, // placeholder
-        });
-
-        account = {
-          id: "temp",
-          userId: session.user.id,
-          email: input.email,
-          displayName: null,
-          credentials: tempCreds,
-          imapHost: input.imapHost,
-          imapPort: input.imapPort ?? 993,
-          imapTls: input.imapTls ?? true,
-          smtpHost: "",
-          smtpPort: 587,
-          smtpSecure: false,
-          isDefault: false,
-          isActive: true,
-          syncedAt: null,
-          color: null,
-          emoji: null,
-          createdAt: new Date(),
-          updatedAt: new Date(),
-        };
+        const imap = new ImapService(found);
+        return imap.testConnection();
       }
 
-      const imap = new ImapService(account);
+      if (!input.email || !input.imapPassword || !input.imapHost) {
+        throw new TRPCError({
+          code: "BAD_REQUEST",
+          message: "email, imapPassword, and imapHost are required",
+        });
+      }
+
+      // Create a temporary account object for testing
+      const tempCreds = encryptObject<StoredCredentials>({
+        imapPassword: input.imapPassword,
+        smtpPassword: input.imapPassword, // placeholder
+      });
+
+      const tempAccount = {
+        id: "temp",
+        userId: session.user.id,
+        email: input.email,
+        displayName: null,
+        credentials: tempCreds,
+        imapHost: input.imapHost,
+        imapPort: input.imapPort ?? 993,
+        imapTls: input.imapTls ?? true,
+        smtpHost: "",
+        smtpPort: 587,
+        smtpSecure: false,
+        isDefault: false,
+        isActive: true,
+        syncedAt: null,
+        color: null,
+        emoji: null,
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      };
+
+      const imap = new ImapService(tempAccount);
       return imap.testConnection();
     }),
 

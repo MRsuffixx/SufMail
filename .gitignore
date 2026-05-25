@@ -3,6 +3,15 @@
 ############################################
 node_modules/
 **/node_modules/
+generated/
+generated/**
+
+apps/**/node_modules/
+packages/**/node_modules/
+services/**/node_modules/
+build/
+coverage/
+logs/
 apps/**/node_modules/
 packages/**/node_modules/
 services/**/node_modules/
