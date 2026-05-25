@@ -2,6 +2,7 @@
 
 import { useCallback, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
+import DOMPurify from "dompurify";
 import { formatRelativeTime, cn } from "~/lib/ui/utils";
 import {
   Star,
@@ -181,7 +182,7 @@ export function MailViewer({ message, onReply, onForward, onToggleRead, onToggle
         {message.bodyHtml ? (
           <div
             className="prose prose-invert prose-sm max-w-none"
-            dangerouslySetInnerHTML={{ __html: message.bodyHtml }}
+            dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(message.bodyHtml, { USE_PROFILES: { html: true } }) }}
           />
         ) : (
           <pre className="whitespace-pre-wrap text-sm text-gray-300">{message.bodyText || "No content"}</pre>

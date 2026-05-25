@@ -158,13 +158,18 @@ export class EmailSecurityService {
     bodyText: string,
   ): UrlScanResult[] {
     const urls = new Set<string>();
+    const MAX_URLS = 200;
 
     if (bodyHtml) {
       try {
         const dom = new JSDOM(bodyHtml);
         dom.window.document.querySelectorAll("a[href]").forEach((el) => {
+          if (urls.size >= MAX_URLS) return;
           const href = el.getAttribute("href");
-          if (href?.startsWith("http")) urls.add(href);
+          const proto = href?.toLowerCase();
+          if (proto?.startsWith("http://") || proto?.startsWith("https://")) {
+            urls.add(href!);
+          }
         });
       } catch {
         // Malformed HTML — skip
@@ -174,6 +179,7 @@ export class EmailSecurityService {
     const urlRe = /https?:\/\/[^\s"'<>()]+/gi;
     let m: RegExpExecArray | null;
     while ((m = urlRe.exec(bodyText)) !== null) {
+      if (urls.size >= MAX_URLS) break;
       if (m[0]) urls.add(m[0]);
     }
 

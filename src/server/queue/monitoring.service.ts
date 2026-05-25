@@ -96,10 +96,11 @@ export class QueueMonitoringService {
       data: unknown;
     }>
   > {
+    const perQueueLimit = limit;
     const [syncFailed, sendFailed, notifyFailed] = await Promise.all([
-      mailSyncQueue.getFailed(0, limit - 1),
-      mailSendQueue.getFailed(0, limit - 1),
-      notificationQueue.getFailed(0, limit - 1),
+      mailSyncQueue.getFailed(0, perQueueLimit),
+      mailSendQueue.getFailed(0, perQueueLimit),
+      notificationQueue.getFailed(0, perQueueLimit),
     ]);
 
     type AnyJob = { id?: string; name: string; failedReason?: string; attemptsMade: number; timestamp: number; data: unknown };
@@ -119,7 +120,10 @@ export class QueueMonitoringService {
       ...toResult("mail:sync", syncFailed as AnyJob[]),
       ...toResult("mail:send", sendFailed as AnyJob[]),
       ...toResult("notifications", notifyFailed as AnyJob[]),
-    ].slice(0, limit);
+    ]
+      .filter((j) => j.jobId !== "")
+      .sort((a, b) => b.timestamp - a.timestamp)
+      .slice(0, limit);
   }
 
   /**
@@ -138,7 +142,12 @@ export class QueueMonitoringService {
 
     const job = await queue.getJob(jobId);
     if (!job) throw new Error(`Job ${jobId} not found in ${queueName}`);
-    await job.retry();
+    const state = await job.getState();
+    if (state === "failed") {
+      await job.retry();
+    } else {
+      throw new Error(`Job ${jobId} is not in failed state (current: ${state})`);
+    }
   }
 
   /**

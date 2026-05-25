@@ -94,17 +94,25 @@ export class SyncService {
             "[Sync] Mailbox sync failed",
           );
           syncErrorsTotal.labels(mailAccountId, "mailbox_error").inc();
+          result.mailboxErrors = (result.mailboxErrors ?? 0) + 1;
         }
       }
 
-      // Reset consecutive failure counter on success
-      await db.mailAccount.update({
-        where: { id: mailAccountId },
-        data: {
-          syncedAt: new Date(),
-          consecutiveSyncFailures: 0,
-        },
-      });
+      if (!result.mailboxErrors || result.mailboxErrors === 0) {
+        // Reset consecutive failure counter on full success
+        await db.mailAccount.update({
+          where: { id: mailAccountId },
+          data: {
+            syncedAt: new Date(),
+            consecutiveSyncFailures: 0,
+          },
+        });
+      } else {
+        await db.mailAccount.update({
+          where: { id: mailAccountId },
+          data: { syncedAt: new Date() },
+        });
+      }
     } catch (err) {
       const msg = `IMAP connection failed: ${String(err)}`;
       result.errors.push(msg);
@@ -354,8 +362,11 @@ export class SyncService {
 
         await db.attachment.upsert({
           where: {
-            // Unique by messageId + filename + contentId combo approximated as storageKey
-            id: storageKey, // fallback: use storageKey as stable ID approximation
+            // Identify existing attachment by messageId + filename (stable across re-syncs)
+            messageId_filename: {
+              messageId: message.id,
+              filename: attachment.filename,
+            },
           },
           create: {
             messageId: message.id,
@@ -366,7 +377,13 @@ export class SyncService {
             isInline: attachment.isInline,
             contentId: attachment.contentId ?? null,
           },
-          update: {},
+          update: {
+            storageKey,
+            mimeType: attachment.mimeType,
+            size: attachment.size,
+            isInline: attachment.isInline,
+            contentId: attachment.contentId ?? null,
+          },
         });
       } catch (err) {
         syncLogger.error(

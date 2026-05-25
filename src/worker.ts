@@ -80,13 +80,13 @@ async function main() {
     await shutdownTracing();
 
     logger.info("[Worker] Shutdown complete");
-    process.exit(0);
   };
 
   process.on("SIGTERM", () => void shutdown("SIGTERM"));
   process.on("SIGINT", () => void shutdown("SIGINT"));
   process.on("uncaughtException", (err) => {
     logger.error({ err }, "[Worker] Uncaught exception");
+    void shutdown("uncaughtException");
   });
   process.on("unhandledRejection", (reason) => {
     logger.error({ reason }, "[Worker] Unhandled rejection");

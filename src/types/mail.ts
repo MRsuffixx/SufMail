@@ -134,6 +134,7 @@ export interface SyncResult {
   messagesUpdated: number;
   errors: string[];
   syncedAt: Date;
+  mailboxErrors?: number;
 }
 
 // ─── Send Options ─────────────────────────────────────────────────────────────

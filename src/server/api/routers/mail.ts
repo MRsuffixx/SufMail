@@ -667,7 +667,7 @@ export const mailRouter = createTRPCRouter({
         take: limit + 1,
         include: {
           messages: {
-            where: { mailAccount: { userId: session.user.id } },
+            where: { mailAccount: { userId: session.user.id }, isDeleted: false },
             orderBy: { receivedAt: "desc" },
             take: 1,
             include: {

@@ -149,9 +149,11 @@ export class ImapIdleService {
         this.client!.on("exists", existsHandler);
 
         // Run IDLE — blocks until server sends update or we abort
-        await this.client!.idle();
-
-        this.client!.off("exists", existsHandler);
+        try {
+          await this.client!.idle();
+        } finally {
+          this.client!.off("exists", existsHandler);
+        }
       } catch (err) {
         // Abort is expected when we trigger a sync
         if ((err as Error).name === "AbortError") continue;
@@ -230,9 +232,8 @@ export class ImapIdleService {
       BASE_RECONNECT_DELAY_MS * Math.pow(2, this.reconnectAttempts),
       MAX_RECONNECT_DELAY_MS,
     );
-    // Add ±10% jitter
     const jitter = delay * 0.1 * (Math.random() * 2 - 1);
-    return Math.round(delay + jitter);
+    return Math.max(0, Math.round(delay + jitter));
   }
 }
 

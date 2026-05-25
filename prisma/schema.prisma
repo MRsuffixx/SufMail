@@ -244,6 +244,7 @@ model Attachment {
 
     message Message @relation(fields: [messageId], references: [id], onDelete: Cascade)
 
+    @@unique([messageId, filename])
     @@index([messageId])
 }
 

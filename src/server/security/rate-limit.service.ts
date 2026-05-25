@@ -91,6 +91,9 @@ export class RateLimitService {
     pipeline.incr(ipKey);
     pipeline.expire(ipKey, bf.lockoutDurationSeconds);
     const results = await pipeline.exec();
+    if (results?.[0]?.[0]) {
+      throw results[0][0];
+    }
     const attempts = (results?.[0]?.[1] as number) ?? 1;
 
     if (userId) {

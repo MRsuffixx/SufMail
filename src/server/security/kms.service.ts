@@ -52,18 +52,24 @@ export class KeyManagementService {
   /**
    * Gets or creates the per-user salt stored in UserKeySalt.
    * Salt is stable per user and changes only on explicit rotation.
+   * Uses upsert to prevent race conditions between concurrent calls.
    */
   static async getUserSalt(userId: string): Promise<Buffer> {
     const existing = await db.userKeySalt.findUnique({ where: { userId } });
     if (existing) {
       return Buffer.from(existing.salt, "hex");
     }
-    // Create fresh salt
     const salt = crypto.randomBytes(SALT_LENGTH);
-    await db.userKeySalt.create({
-      data: { userId, salt: salt.toString("hex") },
-    });
-    return salt;
+    try {
+      await db.userKeySalt.create({
+        data: { userId, salt: salt.toString("hex") },
+      });
+    } catch (err) {
+      const dupErr = err as { code?: string };
+      if (dupErr.code !== "P2002") throw err;
+    }
+    const saved = await db.userKeySalt.findUnique({ where: { userId } });
+    return Buffer.from(saved!.salt, "hex");
   }
 
   /**

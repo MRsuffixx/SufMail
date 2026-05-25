@@ -29,24 +29,24 @@ export class SyncCheckpointService {
 
   /**
    * Saves the last successfully processed UID for a mailbox.
-   * Atomically merges with existing checkpoints.
+   * Uses a transaction with row-level locking to atomically merge checkpoints.
    */
   static async saveCheckpoint(
     accountId: string,
     mailbox: string,
     uid: number,
   ): Promise<void> {
-    const account = await db.mailAccount.findUnique({
-      where: { id: accountId },
-      select: { syncCheckpoint: true },
-    });
-    const current =
-      (account?.syncCheckpoint as MailboxCheckpoints | null) ?? {};
-    const updated: MailboxCheckpoints = { ...current, [mailbox]: uid };
-
-    await db.mailAccount.update({
-      where: { id: accountId },
-      data: { syncCheckpoint: updated },
+    await db.$transaction(async (tx) => {
+      const account = await tx.mailAccount.findUnique({
+        where: { id: accountId },
+        select: { syncCheckpoint: true },
+      });
+      const current = (account?.syncCheckpoint as MailboxCheckpoints | null) ?? {};
+      const updated: MailboxCheckpoints = { ...current, [mailbox]: uid };
+      await tx.mailAccount.update({
+        where: { id: accountId },
+        data: { syncCheckpoint: updated },
+      });
     });
   }
 

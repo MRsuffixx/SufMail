@@ -11,13 +11,10 @@ import { config } from "~/config";
 
 /**
  * Removes all existing repeatable sync jobs for the given account ID.
- * BullMQ's removeRepeatable() requires the repeatJobKey string obtained
- * from getRepeatableJobs(), NOT an object with `every`.
  */
 async function removeRepeatableSyncJobs(accountId: string): Promise<void> {
   const existing = await mailSyncQueue.getRepeatableJobs();
   for (const job of existing) {
-    // Match by name pattern — repeatable job keys encode the job name and repeat options
     if (job.name === "sync" && job.key.includes(accountId)) {
       await mailSyncQueue.removeRepeatableByKey(job.key);
     }
@@ -35,7 +32,6 @@ export async function schedulePeriodicSync(): Promise<void> {
     `[Scheduler] Setting up periodic sync every ${config.mail.syncIntervalSeconds}s`,
   );
 
-  // Get all active mail accounts
   const accounts = await db.mailAccount.findMany({
     where: { isActive: true },
     select: { id: true, userId: true, email: true },
@@ -43,16 +39,19 @@ export async function schedulePeriodicSync(): Promise<void> {
 
   console.info(`[Scheduler] Scheduling sync for ${accounts.length} accounts`);
 
-  // Remove ALL existing sync repeatable jobs first to prevent duplicates on restart
   const allRepeatableJobs = await mailSyncQueue.getRepeatableJobs();
   for (const job of allRepeatableJobs) {
     if (job.name === "sync") {
-      await mailSyncQueue.removeRepeatableByKey(job.key);
+      try {
+        await mailSyncQueue.removeRepeatableByKey(job.key);
+      } catch {
+        // Job may already be removed by concurrent call
+.
+      }
     }
   }
 
   for (const account of accounts) {
-    // Add a new repeatable job (no duplicate risk since we cleared all above)
     await mailSyncQueue.add(
       "sync",
       {
@@ -62,8 +61,6 @@ export async function schedulePeriodicSync(): Promise<void> {
       },
       {
         repeat: { every: intervalMs },
-        // Note: jobId is NOT used for repeatable deduplication in BullMQ —
-        // deduplication is handled by clearing all repeatable jobs above.
       },
     );
 
@@ -81,8 +78,6 @@ export async function scheduleAccountSync(
 ): Promise<void> {
   const intervalMs = config.mail.syncIntervalSeconds * 1000;
 
-  // Remove existing repeatable job for this account using the correct BullMQ API.
-  // removeRepeatable() does NOT work with an options object — use removeRepeatableByKey().
   await removeRepeatableSyncJobs(accountId);
 
   await mailSyncQueue.add(
@@ -103,8 +98,6 @@ export async function scheduleAccountSync(
  * Called when a mail account is deleted or deactivated.
  */
 export async function unscheduleAccountSync(accountId: string): Promise<void> {
-  // Use the correct BullMQ API: getRepeatableJobs() + removeRepeatableByKey().
-  // removeRepeatable(name, {every}) is the incorrect signature and silently does nothing.
   await removeRepeatableSyncJobs(accountId);
 }
 
@@ -121,14 +114,14 @@ export async function processSnoozeWakeups(): Promise<void> {
   });
 
   for (const snoozedMsg of snoozed) {
-    await db.message.update({
-      where: { id: snoozedMsg.messageId },
-      data: { isSnoozed: false, snoozeUntil: null },
-    });
+    await db.$transaction([
+      db.message.update({
+        where: { id: snoozedMsg.messageId },
+        data: { isSnoozed: false, snoozeUntil: null },
+      }),
+      db.snoozedMessage.delete({ where: { id: snoozedMsg.id } }),
+    ]);
 
-    await db.snoozedMessage.delete({ where: { id: snoozedMsg.id } });
-
-    // Enqueue notification
     const { enqueueNotification } = await import("./client");
     await enqueueNotification({
       userId: snoozedMsg.userId,

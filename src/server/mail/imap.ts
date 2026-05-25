@@ -10,6 +10,7 @@ import type { MailAccount } from "../../../generated/prisma";
 import type { MailboxInfo, ParsedEmail } from "~/types/mail";
 import { parseRawEmail } from "./parser";
 import { decryptObject } from "~/lib/crypto";
+import { syncLogger } from "~/lib/logger";
 
 // ─── Credential Types ─────────────────────────────────────────────────────────
 
@@ -167,7 +168,7 @@ export class ImapService {
             results.push(parsed);
           }
         } catch (err) {
-          console.error(`[IMAP] Failed to parse message UID ${msg.uid}:`, err);
+          syncLogger.error({ uid: msg.uid, err }, "[IMAP] Failed to parse message");
         }
       }
     }
@@ -287,8 +288,7 @@ export class ImapService {
   }> {
     try {
       await this.connect();
-      const client = this.client!;
-      const caps = client.capabilities;
+      const caps = this.client?.capabilities;
       const capabilities = caps ? Array.from(caps.keys()) : [];
       await this.disconnect();
       return { success: true, capabilities };

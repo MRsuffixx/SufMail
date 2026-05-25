@@ -108,7 +108,11 @@ async function searchWithPostgres(
     paramIndex++;
   }
 
-  const whereClause = conditions.join(" AND ");
+    const whereClause = conditions.join(" AND ");
+
+  const limitParamIndex = paramIndex;
+  const offsetParamIndex = paramIndex + 1;
+  const allParams = [...params, limit, offset];
 
   // Count total
   const countResult = await db.$queryRawUnsafe<[{ count: bigint }]>(
@@ -116,7 +120,7 @@ async function searchWithPostgres(
      FROM "Message" m
      JOIN "MailAccount" ma ON m."mailAccountId" = ma.id
      WHERE ${whereClause}`,
-    ...params,
+    ...allParams,
   );
   const total = Number(countResult[0]?.count ?? 0);
 
@@ -148,10 +152,8 @@ async function searchWithPostgres(
      JOIN "MailAccount" ma ON m."mailAccountId" = ma.id
      WHERE ${whereClause}
      ORDER BY m."receivedAt" DESC
-     LIMIT $${paramIndex} OFFSET $${paramIndex + 1}`,
-    ...params,
-    limit,
-    offset,
+     LIMIT $${limitParamIndex} OFFSET $${offsetParamIndex}`,
+    ...allParams,
   );
 
   const messages: MessageListItem[] = rawMessages.map((msg) => ({
@@ -207,7 +209,7 @@ async function searchWithMeilisearch(
     },
     body: JSON.stringify({
       q: query,
-      filter: `userId = "${userId}"`,
+      filter: `userId = "${userId.replace(/"/g, '\\"')}"`,
       limit: options.limit ?? 50,
       offset: options.offset ?? 0,
     }),

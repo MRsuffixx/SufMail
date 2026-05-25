@@ -82,9 +82,9 @@ export function createMailSendWorker(): Worker<MailSendJobData> {
 
       const smtp = createSmtpService(account);
 
-      const to = (draft.to as unknown as EmailAddress[]) ?? [];
-      const cc = (draft.cc as unknown as EmailAddress[]) ?? [];
-      const bcc = (draft.bcc as unknown as EmailAddress[]) ?? [];
+      const to = (Array.isArray(draft.to) ? draft.to : []) as EmailAddress[];
+      const cc = (Array.isArray(draft.cc) ? draft.cc : []) as EmailAddress[];
+      const bcc = (Array.isArray(draft.bcc) ? draft.bcc : []) as EmailAddress[];
 
       const sendOptions: SendOptions = {
         mailAccountId: account.id,
@@ -105,7 +105,11 @@ export function createMailSendWorker(): Worker<MailSendJobData> {
       console.info(`[Worker:send] Message sent, ID: ${String(info.messageId)}`);
 
       // Delete the draft after successful send
-      await db.draft.delete({ where: { id: draftId } });
+      try {
+        await db.draft.delete({ where: { id: draftId } });
+      } catch (deleteErr) {
+        console.error(`[Worker:send] Failed to delete draft ${draftId}:`, deleteErr);
+      }
 
       return { messageId: info.messageId };
     },
@@ -142,6 +146,18 @@ function getSystemTransporter(): nodemailer.Transporter | null {
 }
 
 /**
+ * Escapes HTML special characters to prevent XSS in notification email content.
+ */
+function escapeHtml(str: string): string {
+  return String(str)
+    .replace(/&/g, "&")
+    .replace(/</g, "<")
+    .replace(/>/g, ">")
+    .replace(/"/g, """)
+    .replace(/'/g, "&#039;");
+}
+
+/**
  * Builds an HTML email body for a notification.
  */
 function buildNotificationEmail(
@@ -149,59 +165,62 @@ function buildNotificationEmail(
   payload: Record<string, unknown>,
   appName: string,
 ): { subject: string; html: string; text: string } {
+  const safeAppName = escapeHtml(appName);
+  const subjectRaw = payload.subject != null ? String(payload.subject) : "(no subject)";
+  const subject = `New message: ${escapeHtml(subjectRaw)}`;
+  const from = escapeHtml(String(payload.fromEmail ?? ""));
+  const preview = escapeHtml(String(payload.snippet ?? ""));
   switch (type) {
     case "new_message": {
-      const subject = `New message: ${String(payload.subject ?? "(no subject)")}`;
-      const from = String(payload.fromEmail ?? "");
-      const preview = String(payload.snippet ?? "");
       return {
         subject,
         html: `
-          <p>You have a new message in <strong>${appName}</strong>.</p>
+          <p>You have a new message in <strong>${safeAppName}</strong>.</p>
           <p><strong>From:</strong> ${from}</p>
-          <p><strong>Subject:</strong> ${String(payload.subject ?? "(no subject)")}</p>
+          <p><strong>Subject:</strong> ${escapeHtml(subjectRaw)}</p>
           ${preview ? `<p><strong>Preview:</strong> ${preview}</p>` : ""}
           <hr/>
           <p style="color:#888;font-size:12px">
-            You are receiving this because notifications are enabled in ${appName}.
+            You are receiving this because notifications are enabled in ${safeAppName}.
           </p>`,
-        text: `New message from ${from}: ${String(payload.subject ?? "(no subject)")}${preview ? `\n\n${preview}` : ""}`,
+        text: `New message from ${from}: ${subjectRaw}${preview ? `\n\n${preview}` : ""}`,
       };
     }
     case "snooze_wakeup": {
-      const subject = `Reminder: ${String(payload.subject ?? "(no subject)")}`;
+      const subjectStr = payload.subject != null ? String(payload.subject) : "(no subject)";
       return {
-        subject,
+        subject: `Reminder: ${escapeHtml(subjectStr)}`,
         html: `
-          <p>Your snoozed message has woken up in <strong>${appName}</strong>.</p>
-          <p><strong>Subject:</strong> ${String(payload.subject ?? "(no subject)")}</p>
+          <p>Your snoozed message has woken up in <strong>${safeAppName}</strong>.</p>
+          <p><strong>Subject:</strong> ${escapeHtml(subjectStr)}</p>
           <hr/>
           <p style="color:#888;font-size:12px">
-            You are receiving this because you snoozed a message in ${appName}.
+            You are receiving this because you snoozed a message in ${safeAppName}.
           </p>`,
-        text: `Snoozed message reminder: ${String(payload.subject ?? "(no subject)")}`,
+        text: `Snoozed message reminder: ${subjectStr}`,
       };
     }
     case "digest": {
-      const count = Number(payload.count ?? 0);
-      const subject = `Your ${appName} digest: ${count} new message${count !== 1 ? "s" : ""}`;
+      const rawCount = payload.count;
+      const count = typeof rawCount === "number" && !isNaN(rawCount) ? rawCount : 0;
+      const subjectStr = `Your ${safeAppName} digest: ${count} new message${count !== 1 ? "s" : ""}`;
       return {
-        subject,
+        subject: subjectStr,
         html: `
-          <p>Here is your <strong>${appName}</strong> digest.</p>
+          <p>Here is your <strong>${safeAppName}</strong> digest.</p>
           <p>You have <strong>${count}</strong> new message${count !== 1 ? "s" : ""} since your last digest.</p>
           <hr/>
           <p style="color:#888;font-size:12px">
-            You are receiving this digest because email digest is enabled in ${appName}.
-          </p>`,
-        text: `${appName} digest: ${count} new message${count !== 1 ? "s" : ""}.`,
+            You are receiving this digest because email digest is enabled in ${safeAppName}.
+          </ttml>`,
+        text: `${safeAppName} digest: ${count} new message${count !== 1 ? "s" : ""}.`,
       };
     }
     default: {
       return {
-        subject: `${appName} notification`,
-        html: `<p>You have a new notification in <strong>${appName}</strong>.</p>`,
-        text: `You have a new notification in ${appName}.`,
+        subject: `${safeAppName} notification`,
+        html: `<p>You have a new notification in <strong>${safeAppName}</strong>.</p>`,
+        text: `You have a new notification in ${safeAppName}.`,
       };
     }
   }

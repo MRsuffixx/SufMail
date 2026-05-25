@@ -9,6 +9,7 @@ import { TRPCError } from "@trpc/server";
 import { createTRPCRouter, protectedProcedure } from "~/server/api/trpc";
 import { db } from "~/server/db";
 import { enqueueSendJob } from "~/server/queue/client";
+import { syncLogger } from "~/lib/logger";
 
 const emailAddressSchema = z.object({
   email: z.string().email(),
@@ -215,7 +216,12 @@ export const draftsRouter = createTRPCRouter({
       // Note: Removing the job from BullMQ requires the job ID
       // The worker will check if scheduledAt is null before sending
       const { mailSendQueue } = await import("~/server/queue/client");
-      await mailSendQueue.remove(`send:${draft.id}`).catch(() => null);
+      await mailSendQueue.remove(`send:${draft.id}`).catch((removeErr) => {
+        const msg = removeErr instanceof Error ? removeErr.message : String(removeErr);
+        if (!msg.includes("Not found") && !msg.includes("Job")) {
+          syncLogger.warn({ draftId: draft.id, err: removeErr }, "[Drafts] Failed to remove send job");
+        }
+      });
 
       return { cancelled: true };
     }),

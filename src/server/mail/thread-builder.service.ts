@@ -177,7 +177,12 @@ export class ThreadBuilderService {
     });
     if (!thread) return;
 
-    const participants = (thread.participantEmails as string[]) ?? [];
+    let participants: string[] = [];
+    try {
+      participants = JSON.parse(thread.participantEmails as string) as string[];
+    } catch {
+      participants = [];
+    }
     if (!participants.includes(parsed.from.email)) {
       participants.push(parsed.from.email);
     }

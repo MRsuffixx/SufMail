@@ -130,5 +130,7 @@ export async function enqueueSendJob(
 export async function enqueueNotification(
   data: NotificationJobData,
 ): Promise<void> {
-  await notificationQueue.add("notify", data);
+  await notificationQueue.add("notify", data, {
+    jobId: `notify:${data.userId}:${data.type}:${Date.now()}`,
+  });
 }
