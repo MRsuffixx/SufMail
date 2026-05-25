@@ -303,6 +303,13 @@ export class ImapService {
 
 // ─── Connection Pool ──────────────────────────────────────────────────────────
 
+/**
+ * Module-level connection pool. Stores one ImapService per account ID.
+ *
+ * Limitation: If credentials change or an account is deleted, the old
+ * connection remains cached until explicitly evicted. Always call
+ * evictImapService() when updating or deleting an account.
+ */
 const pool = new Map<string, ImapService>();
 
 /**
@@ -319,6 +326,7 @@ export function getImapService(account: MailAccount): ImapService {
 
 /**
  * Removes an ImapService from the pool and disconnects it.
+ * Must be called when an account's credentials change or the account is deleted.
  */
 export async function releaseImapService(accountId: string): Promise<void> {
   const service = pool.get(accountId);
@@ -327,3 +335,8 @@ export async function releaseImapService(accountId: string): Promise<void> {
     pool.delete(accountId);
   }
 }
+
+/**
+ * Alias for releaseImapService — evicts a stale cached connection.
+ */
+export const evictImapService = releaseImapService;

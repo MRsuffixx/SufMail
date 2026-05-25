@@ -11,7 +11,7 @@ import { db } from "~/server/db";
 import { config } from "~/config";
 import { encryptObject, decryptObject } from "~/lib/crypto";
 import { isMailDomainAllowed } from "~/lib/config-utils";
-import { ImapService } from "~/server/mail/imap";
+import { ImapService, evictImapService } from "~/server/mail/imap";
 import { createSmtpService, evictTransporter } from "~/server/mail/smtp";
 import { scheduleAccountSync, unscheduleAccountSync } from "~/server/queue/scheduler";
 
@@ -181,9 +181,10 @@ export const accountsRouter = createTRPCRouter({
         });
       }
 
-      // Evict cached transporter if credentials changed
+      // Evict cached transporter and IMAP connection if credentials changed
       if (credentialsUpdate) {
         evictTransporter(account.id);
+        await evictImapService(account.id).catch(() => null);
       }
 
       const updated = await db.mailAccount.update({
@@ -222,8 +223,9 @@ export const accountsRouter = createTRPCRouter({
       if (!account)
         throw new TRPCError({ code: "NOT_FOUND", message: "Mail account not found" });
 
-      // Unschedule periodic sync
+      // Unschedule periodic sync and evict IMAP pool entry
       await unscheduleAccountSync(input.id).catch(() => null);
+      await evictImapService(input.id).catch(() => null);
 
       // Cascade delete via Prisma (messages, attachments are cascade deleted)
       await db.mailAccount.delete({ where: { id: input.id } });
