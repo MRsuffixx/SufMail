@@ -154,9 +154,6 @@ async function searchWithPostgres(
     offset,
   );
 
-  // NOTE: limit and offset are appended to params array after paramIndex is finalized,
-  // so $paramIndex binds to limit and $paramIndex+1 binds to offset correctly.
-
   const messages: MessageListItem[] = rawMessages.map((msg) => ({
     id: msg.id,
     threadId: msg.threadId,
@@ -187,8 +184,7 @@ async function searchWithMeilisearch(
 ): Promise<SearchResult> {
   const { MEILISEARCH_HOST, MEILISEARCH_API_KEY } = await import("~/env").then(
     (m) => m.env,
-  ) as { MEILISEARCH_HOST?: string; MEILISEARCH_API_KEY?: string };
-  // ~/env exports `env` as a named export, not a default — destructure from the module
+  );
 
   if (!MEILISEARCH_HOST) {
     console.warn(
