@@ -2,7 +2,14 @@ import { create } from "zustand";
 import { persist } from "zustand/middleware";
 import type { UIState, ThemeConfig, ThemeMode } from "~/types/ui";
 
-interface UIStore extends UIState {
+interface UIStore {
+  sidebarCollapsed: boolean;
+  sidebarWidth: number;
+  focusModeEnabled: boolean;
+  splitViewEnabled: boolean;
+  activePane: "list" | "viewer";
+  commandPaletteOpen: boolean;
+  currentFolder: string | null;
   setSidebarCollapsed: (collapsed: boolean) => void;
   setSidebarWidth: (width: number) => void;
   toggleSidebar: () => void;
@@ -14,6 +21,7 @@ interface UIStore extends UIState {
   setCommandPaletteOpen: (open: boolean) => void;
   toggleCommandPalette: () => void;
   resetLayout: () => void;
+  setCurrentFolder: (folder: string | null) => void;
 }
 
 interface ThemeStore extends ThemeConfig {
@@ -26,13 +34,26 @@ interface ThemeStore extends ThemeConfig {
   toggleAnimations: () => void;
 }
 
-const DEFAULT_UI_STATE: UIState = {
+const DEFAULT_UI_STATE: UIStore = {
   sidebarCollapsed: false,
   sidebarWidth: 260,
   focusModeEnabled: false,
   splitViewEnabled: false,
   activePane: "list",
   commandPaletteOpen: false,
+  currentFolder: null,
+  setSidebarCollapsed: () => {},
+  setSidebarWidth: () => {},
+  toggleSidebar: () => {},
+  setFocusModeEnabled: () => {},
+  toggleFocusMode: () => {},
+  setSplitViewEnabled: () => {},
+  toggleSplitView: () => {},
+  setActivePane: () => {},
+  setCommandPaletteOpen: () => {},
+  toggleCommandPalette: () => {},
+  resetLayout: () => {},
+  setCurrentFolder: () => {},
 };
 
 const DEFAULT_THEME: ThemeConfig = {

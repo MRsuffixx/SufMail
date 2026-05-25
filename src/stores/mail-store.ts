@@ -1,7 +1,11 @@
 import { create } from "zustand";
-import type { MailListState, MessageListItem, ThreadSummary, LabelInfo } from "~/types/mail";
+import type { MessageListItem, ThreadSummary, LabelInfo } from "~/types/mail";
 
-interface MailStore extends MailListState {
+interface MailStore {
+  selectedMessageId: string | null;
+  selectedThreadId: string | null;
+  expandedThreads: Set<string>;
+  hoveredMessageId: string | null;
   setSelectedMessage: (id: string | null) => void;
   setSelectedThread: (id: string | null) => void;
   toggleThreadExpanded: (id: string) => void;
