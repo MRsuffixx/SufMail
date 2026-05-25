@@ -101,7 +101,8 @@ export const settingsRouter = createTRPCRouter({
 
       await db.user.update({
         where: { id: ctx.session.user.id },
-        data: { settings: updated },
+        // Prisma requires InputJsonValue for Json fields — cast through unknown
+        data: { settings: updated as Parameters<typeof db.user.update>[0]["data"]["settings"] },
       });
 
       return updated;
