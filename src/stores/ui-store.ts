@@ -1,6 +1,5 @@
 import { create } from "zustand";
 import { persist } from "zustand/middleware";
-import type { UIState, ThemeConfig, ThemeMode } from "~/types/ui";
 
 interface UIStore {
   sidebarCollapsed: boolean;
@@ -24,8 +23,14 @@ interface UIStore {
   setCurrentFolder: (folder: string | null) => void;
 }
 
-interface ThemeStore extends ThemeConfig {
-  setThemeMode: (mode: ThemeMode) => void;
+interface ThemeStore {
+  mode: "light" | "dark" | "system";
+  primaryColor: string;
+  accentColor: string;
+  density: "compact" | "comfortable" | "spacious";
+  borderRadius: "none" | "sm" | "md" | "lg" | "xl";
+  animationsEnabled: boolean;
+  setThemeMode: (mode: "light" | "dark" | "system") => void;
   setPrimaryColor: (color: string) => void;
   setAccentColor: (color: string) => void;
   setDensity: (density: "compact" | "comfortable" | "spacious") => void;
@@ -34,34 +39,22 @@ interface ThemeStore extends ThemeConfig {
   toggleAnimations: () => void;
 }
 
-const DEFAULT_UI_STATE: UIStore = {
+const DEFAULT_UI_STATE = {
   sidebarCollapsed: false,
   sidebarWidth: 260,
   focusModeEnabled: false,
   splitViewEnabled: false,
-  activePane: "list",
+  activePane: "list" as const,
   commandPaletteOpen: false,
   currentFolder: null,
-  setSidebarCollapsed: () => {},
-  setSidebarWidth: () => {},
-  toggleSidebar: () => {},
-  setFocusModeEnabled: () => {},
-  toggleFocusMode: () => {},
-  setSplitViewEnabled: () => {},
-  toggleSplitView: () => {},
-  setActivePane: () => {},
-  setCommandPaletteOpen: () => {},
-  toggleCommandPalette: () => {},
-  resetLayout: () => {},
-  setCurrentFolder: () => {},
 };
 
-const DEFAULT_THEME: ThemeConfig = {
-  mode: "system",
+const DEFAULT_THEME = {
+  mode: "system" as const,
   primaryColor: "hsl(221, 83%, 53%)",
   accentColor: "hsl(262, 83%, 58%)",
-  density: "comfortable",
-  borderRadius: "md",
+  density: "comfortable" as const,
+  borderRadius: "md" as const,
   animationsEnabled: true,
 };
 
@@ -81,6 +74,7 @@ export const useUIStore = create<UIStore>()(
       setCommandPaletteOpen: (open) => set({ commandPaletteOpen: open }),
       toggleCommandPalette: () => set((state) => ({ commandPaletteOpen: !state.commandPaletteOpen })),
       resetLayout: () => set(DEFAULT_UI_STATE),
+      setCurrentFolder: (folder) => set({ currentFolder: folder }),
     }),
     { name: "mailforge-ui" }
   )
