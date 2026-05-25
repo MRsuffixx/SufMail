@@ -96,6 +96,7 @@ model User {
     drafts            Draft[]
     notificationLogs  NotificationLog[]
     snoozedMessages   SnoozedMessage[]
+    keySalt           UserKeySalt?
 
     @@index([email])
     @@index([role])
@@ -104,25 +105,31 @@ model User {
 // ─── Mail Account ─────────────────────────────────────────────────────────────
 
 model MailAccount {
-    id          String    @id @default(cuid())
-    userId      String
-    email       String
-    displayName String?
+    id                   String    @id @default(cuid())
+    userId               String
+    email                String
+    displayName          String?
     /// Encrypted JSON: { imapPassword, smtpPassword }
-    credentials String    @db.Text
-    imapHost    String
-    imapPort    Int
-    imapTls     Boolean   @default(true)
-    smtpHost    String
-    smtpPort    Int
-    smtpSecure  Boolean   @default(false)
-    isDefault   Boolean   @default(false)
-    isActive    Boolean   @default(true)
-    syncedAt    DateTime?
-    color       String?   // e.g. "#4f46e5"
-    emoji       String?   // e.g. "📧"
-    createdAt   DateTime  @default(now())
-    updatedAt   DateTime  @updatedAt
+    credentials          String    @db.Text
+    /// Key version used to encrypt credentials (0=legacy, 1=v1 KMS, etc.)
+    credentialKeyVersion Int       @default(0)
+    imapHost             String
+    imapPort             Int
+    imapTls              Boolean   @default(true)
+    smtpHost             String
+    smtpPort             Int
+    smtpSecure           Boolean   @default(false)
+    isDefault            Boolean   @default(false)
+    isActive             Boolean   @default(true)
+    syncedAt             DateTime?
+    /// JSON: MailboxCheckpoints — per-mailbox last synced UID
+    syncCheckpoint       Json      @default("{}")
+    /// Count of consecutive sync failures (for circuit breaker)
+    consecutiveSyncFailures Int    @default(0)
+    color                String?   // e.g. "#4f46e5"
+    emoji                String?   // e.g. "📧"
+    createdAt            DateTime  @default(now())
+    updatedAt            DateTime  @updatedAt
 
     user        User      @relation(fields: [userId], references: [id], onDelete: Cascade)
     messages    Message[]
@@ -187,6 +194,10 @@ model Message {
     size          Int       @default(0)
     /// JSON: Record<string, string> — raw headers
     headers       Json      @default("{}")
+    /// JSON: SecurityMeta — SPF/DKIM/DMARC + phishing analysis results
+    securityMeta  Json      @default("{}")
+    /// SHA-256 hash for deduplication: fromEmail|date|bodyText[0:500]
+    messageHash   String?
     /// S3/R2 object key for full raw RFC 2822 message
     rawPath       String?
     uid           Int?      // IMAP UID
@@ -212,6 +223,7 @@ model Message {
     @@index([mailAccountId, receivedAt])
     @@index([mailAccountId, isRead])
     @@index([mailAccountId, isDeleted])
+    @@index([mailAccountId, messageHash])
 }
 
 // ─── Attachment ───────────────────────────────────────────────────────────────
@@ -226,6 +238,8 @@ model Attachment {
     storageKey  String
     isInline    Boolean  @default(false)
     contentId   String?  // CID for inline images
+    /// Extracted text content for search indexing (PDF, plain text)
+    textContent String?  @db.Text
     createdAt   DateTime @default(now())
 
     message Message @relation(fields: [messageId], references: [id], onDelete: Cascade)
@@ -379,4 +393,17 @@ model NotificationLog {
     @@index([userId])
     @@index([userId, isRead])
     @@index([userId, createdAt])
+}
+
+// ─── UserKeySalt ──────────────────────────────────────────────────────────────
+
+/// Stores the per-user HKDF salt used by KeyManagementService for envelope encryption.
+/// One record per user, created lazily on first encryption.
+model UserKeySalt {
+    userId    String   @id
+    /// Hex-encoded 32-byte random salt
+    salt      String
+    createdAt DateTime @default(now())
+
+    user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 }

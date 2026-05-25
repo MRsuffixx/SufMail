@@ -8,47 +8,67 @@
  *   pnpm worker:dev     — development (with tsx watch)
  */
 
+// OpenTelemetry must be initialized before any other imports
+import { initTracing, shutdownTracing } from "~/server/observability/tracing";
+initTracing();
+
 import { createMailSyncWorker, createMailSendWorker, createNotificationWorker } from "~/server/queue/workers";
 import { schedulePeriodicSync } from "~/server/queue/scheduler";
 import { getRedisConnection } from "~/server/queue/client";
+import { ImapConnectionManager } from "~/server/mail/connection-manager";
+import { logger } from "~/lib/logger";
 
 async function main() {
-  console.info("╔═══════════════════════════════════════╗");
-  console.info("║   MailForge Worker Process Starting   ║");
-  console.info("╚═══════════════════════════════════════╝");
+  logger.info("╔═══════════════════════════════════════╗");
+  logger.info("║   MailForge Worker Process Starting   ║");
+  logger.info("╚═══════════════════════════════════════╝");
 
   // Test Redis connection
   const redis = getRedisConnection();
   try {
     await redis.ping();
-    console.info("[Worker] ✓ Redis connected");
+    logger.info("[Worker] ✓ Redis connected");
   } catch (err) {
-    console.error("[Worker] ✗ Redis connection failed:", err);
+    logger.error({ err }, "[Worker] ✗ Redis connection failed");
     process.exit(1);
   }
 
-  // Start all workers
+  // Start all BullMQ workers
   const syncWorker = createMailSyncWorker();
   const sendWorker = createMailSendWorker();
   const notifWorker = createNotificationWorker();
 
-  console.info("[Worker] ✓ Mail sync worker started");
-  console.info("[Worker] ✓ Mail send worker started");
-  console.info("[Worker] ✓ Notification worker started");
+  logger.info("[Worker] ✓ Mail sync worker started");
+  logger.info("[Worker] ✓ Mail send worker started");
+  logger.info("[Worker] ✓ Notification worker started");
 
   // Schedule periodic sync for all active accounts
   try {
     await schedulePeriodicSync();
-    console.info("[Worker] ✓ Periodic sync scheduled");
+    logger.info("[Worker] ✓ Periodic sync scheduled");
   } catch (err) {
-    console.error("[Worker] ✗ Failed to schedule periodic sync:", err);
+    logger.error({ err }, "[Worker] ✗ Failed to schedule periodic sync");
   }
 
-  console.info("[Worker] 🚀 All workers running. Press Ctrl+C to stop.\n");
+  // Start IMAP IDLE persistent connection manager
+  try {
+    await ImapConnectionManager.startAll();
+    logger.info(
+      { connections: ImapConnectionManager.activeCount },
+      "[Worker] ✓ IMAP IDLE connections started",
+    );
+  } catch (err) {
+    logger.error({ err }, "[Worker] ✗ Failed to start IMAP connections");
+  }
+
+  logger.info("[Worker] 🚀 All workers running. Press Ctrl+C to stop.\n");
 
   // Graceful shutdown
   const shutdown = async (signal: string) => {
-    console.info(`\n[Worker] Received ${signal}, shutting down gracefully...`);
+    logger.info(`[Worker] Received ${signal}, shutting down gracefully...`);
+
+    // Stop IDLE connections first
+    await ImapConnectionManager.stopAll();
 
     await Promise.all([
       syncWorker.close(),
@@ -57,12 +77,20 @@ async function main() {
     ]);
 
     await redis.quit();
-    console.info("[Worker] Shutdown complete");
+    await shutdownTracing();
+
+    logger.info("[Worker] Shutdown complete");
     process.exit(0);
   };
 
   process.on("SIGTERM", () => void shutdown("SIGTERM"));
   process.on("SIGINT", () => void shutdown("SIGINT"));
+  process.on("uncaughtException", (err) => {
+    logger.error({ err }, "[Worker] Uncaught exception");
+  });
+  process.on("unhandledRejection", (reason) => {
+    logger.error({ reason }, "[Worker] Unhandled rejection");
+  });
 }
 
 main().catch((err) => {
