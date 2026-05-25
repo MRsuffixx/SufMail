@@ -13,16 +13,16 @@ import type { ParsedEmail } from "~/types/mail";
 import type { SyncResult } from "~/types/mail";
 import type { MailAccount } from "../../../generated/prisma";
 
-// ─── System Label Constants ───────────────────────────────────────────────────
-
+// Maps IMAP mailbox names to system label types.
+// "Junk" is the RFC 6154 standard special-use attribute; "Spam" is a
+// provider-specific alias. We keep "Junk" as the canonical entry.
 const IMAP_MAILBOX_LABEL_MAP: Record<string, string> = {
   INBOX: "INBOX",
   Sent: "SENT",
   Drafts: "DRAFTS",
   Draft: "DRAFTS",
   Trash: "TRASH",
-  Junk: "SPAM",
-  Spam: "SPAM",
+  Junk: "SPAM",    // RFC 6154 \Junk special-use attribute
   Archive: "ARCHIVE",
   Archives: "ARCHIVE",
 };

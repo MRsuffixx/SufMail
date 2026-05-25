@@ -251,10 +251,38 @@ export const settingsRouter = createTRPCRouter({
           .refine((val) => val === "DELETE", {
             message: 'Type "DELETE" to confirm account deletion',
           }),
+        password: z.string().optional(), // Required for credentials users
       }),
     )
-    .mutation(async ({ ctx }) => {
-      await db.user.delete({ where: { id: ctx.session.user.id } });
+    .mutation(async ({ ctx, input }) => {
+      const userId = ctx.session.user.id;
+
+      // Fetch user to check if they have a password (credentials-based account)
+      const user = await db.user.findUnique({
+        where: { id: userId },
+        select: { password: true },
+      });
+
+      // If user has a password, require it to be verified before deletion
+      if (user?.password) {
+        if (!input.password) {
+          throw new TRPCError({
+            code: "BAD_REQUEST",
+            message: "Password confirmation is required to delete a credentials-based account",
+          });
+        }
+
+        const { verifyPassword } = await import("~/server/auth/helpers");
+        const valid = await verifyPassword(input.password, user.password);
+        if (!valid) {
+          throw new TRPCError({
+            code: "UNAUTHORIZED",
+            message: "Incorrect password",
+          });
+        }
+      }
+
+      await db.user.delete({ where: { id: userId } });
       return { deleted: true };
     }),
 });

@@ -17,12 +17,9 @@ import { config } from "~/config";
  * A procedure that requires the user to have the ADMIN role.
  */
 const adminProcedure = protectedProcedure.use(async ({ ctx, next }) => {
-  const user = await db.user.findUnique({
-    where: { id: ctx.session.user.id },
-    select: { role: true },
-  });
-
-  if (user?.role !== "ADMIN") {
+  // Role is already embedded in the JWT token via the jwt() callback in auth/config.ts.
+  // No need to query the database \u2014 ctx.session.user.role is authoritative.
+  if (ctx.session.user.role !== "ADMIN") {
     throw new TRPCError({
       code: "FORBIDDEN",
       message: "Admin access required",
