@@ -1,10 +1,10 @@
 "use client";
 
-import { useCallback, useMemo, useRef, useEffect } from "react";
-import { FixedSizeList as List, type ListChildComponentProps } from "react-window";
+import { useCallback, useMemo, useRef } from "react";
+import { FixedSizeList } from "react-window";
 import { motion } from "framer-motion";
 import { formatRelativeTime, cn } from "~/lib/ui/utils";
-import { Star, Paperclip, ChevronRight, ChevronDown } from "lucide-react";
+import { Star, Paperclip, ChevronRight } from "lucide-react";
 import type { MessageListItem, LabelInfo } from "~/types/mail";
 import { useMailStore } from "~/stores";
 
@@ -17,7 +17,9 @@ interface MailListProps {
   labels?: LabelInfo[];
 }
 
-interface MailListItemProps extends ListChildComponentProps {
+interface MailListItemProps {
+  index: number;
+  style: React.CSSProperties;
   data: {
     messages: MessageListItem[];
     labels: LabelInfo[];
@@ -31,9 +33,11 @@ interface MailListItemProps extends ListChildComponentProps {
 const MailListRow = ({ index, style, data }: MailListItemProps) => {
   const { messages, selectedMessageId, hoveredMessageId, onMessageClick, onMessageRightClick } = data;
   const message = messages[index];
+  if (!message) return null;
+
   const isSelected = selectedMessageId === message.id;
   const isHovered = hoveredMessageId === message.id;
-  const { setHoveredMessage, setSelectedMessage } = useMailStore.getState();
+  const { setHoveredMessage } = useMailStore();
 
   const handleMouseEnter = useCallback(() => {
     setHoveredMessage(message.id);
@@ -61,7 +65,7 @@ const MailListRow = ({ index, style, data }: MailListItemProps) => {
     <div
       style={style}
       className={cn(
-        "group flex items-center border-b border-white/5 px-4 py-3 cursor-pointer transition-colors",
+        "group flex items-center border-b border-white/5 px-4 cursor-pointer transition-colors",
         isSelected && "bg-blue-600/20",
         !isSelected && isHovered && "bg-white/5",
         !isSelected && !isHovered && "hover:bg-white/5"
@@ -73,8 +77,11 @@ const MailListRow = ({ index, style, data }: MailListItemProps) => {
     >
       {/* Star indicator */}
       <div className="flex-shrink-0 w-8 flex items-center justify-center">
-        {message.isStarred && <Star className="h-4 w-4 text-yellow-500 fill-yellow-500" />}
-        {!message.isStarred && <div className="h-2 w-2 rounded-full bg-gray-600" />}
+        {message.isStarred ? (
+          <Star className="h-4 w-4 text-yellow-500 fill-yellow-500" />
+        ) : (
+          <div className="h-2 w-2 rounded-full bg-gray-600" />
+        )}
       </div>
 
       {/* Sender */}
@@ -143,22 +150,20 @@ export function MailList({
   isLoading,
   onMessageClick,
   onMessageRightClick,
-  onThreadClick,
-  labels = [],
 }: MailListProps) {
-  const listRef = useRef<List>(null);
-  const { selectedMessageId, hoveredMessageId, selectedThreadId } = useMailStore();
+  const listRef = useRef<FixedSizeList>(null);
+  const { selectedMessageId, hoveredMessageId } = useMailStore();
 
   const itemData = useMemo(
     () => ({
       messages,
-      labels,
+      labels: [] as LabelInfo[],
       selectedMessageId,
       hoveredMessageId,
       onMessageClick,
       onMessageRightClick,
     }),
-    [messages, labels, selectedMessageId, hoveredMessageId, onMessageClick, onMessageRightClick]
+    [messages, selectedMessageId, hoveredMessageId, onMessageClick, onMessageRightClick]
   );
 
   const handleKeyDown = useCallback(
@@ -170,13 +175,17 @@ export function MailList({
       if (e.key === "ArrowDown" && currentIndex < messages.length - 1) {
         e.preventDefault();
         const nextMessage = messages[currentIndex + 1];
-        useMailStore.getState().setSelectedMessage(nextMessage.id);
-        listRef.current?.scrollToItem(currentIndex + 1);
+        if (nextMessage) {
+          useMailStore.getState().setSelectedMessage(nextMessage.id);
+          listRef.current?.scrollToItem(currentIndex + 1);
+        }
       } else if (e.key === "ArrowUp" && currentIndex > 0) {
         e.preventDefault();
         const prevMessage = messages[currentIndex - 1];
-        useMailStore.getState().setSelectedMessage(prevMessage.id);
-        listRef.current?.scrollToItem(currentIndex - 1);
+        if (prevMessage) {
+          useMailStore.getState().setSelectedMessage(prevMessage.id);
+          listRef.current?.scrollToItem(currentIndex - 1);
+        }
       } else if (e.key === "Enter" && selectedMessageId) {
         const message = messages.find((m) => m.id === selectedMessageId);
         if (message) onMessageClick?.(message);
@@ -220,7 +229,7 @@ export function MailList({
       onKeyDown={handleKeyDown}
       tabIndex={0}
     >
-      <List
+      <FixedSizeList
         ref={listRef}
         height={window.innerHeight - 200}
         width="100%"
@@ -230,7 +239,7 @@ export function MailList({
         overscanCount={5}
       >
         {MailListRow}
-      </List>
+      </FixedSizeList>
     </div>
   );
 }
