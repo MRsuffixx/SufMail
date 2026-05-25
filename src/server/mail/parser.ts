@@ -11,19 +11,17 @@ import { JSDOM } from "jsdom";
 import type { ParsedEmail, ParsedAttachment, EmailAddress } from "~/types/mail";
 import { normalizeMessageId } from "~/lib/mail-utils";
 
-// Create a JSDOM window for DOMPurify (Node.js compatibility)
-function createDOMPurify() {
-  const window = new JSDOM("").window;
-  // eslint-disable-next-line @typescript-eslint/no-unsafe-argument, @typescript-eslint/no-explicit-any
-  return DOMPurify(window as any);
-}
+// Create a single JSDOM window and DOMPurify instance once at module load.
+// Creating new JSDOM instances on every call is expensive; a singleton is safe
+// here because DOMPurify is stateless between calls.
+const _domPurifyInstance = DOMPurify(new JSDOM("").window as unknown as Window);
 
 /**
  * Sanitizes HTML content to prevent XSS attacks.
  * Allows safe email HTML while stripping dangerous elements.
  */
 export function sanitizeHtml(html: string): string {
-  const purify = createDOMPurify();
+  const purify = _domPurifyInstance;
 
   return purify.sanitize(html, {
     ALLOWED_TAGS: [

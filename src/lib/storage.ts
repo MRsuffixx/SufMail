@@ -5,7 +5,7 @@
  * Configure the provider in config.ts → config.storage.provider
  */
 
-import { createReadStream, createWriteStream, mkdirSync, existsSync } from "fs";
+import { createWriteStream, mkdirSync, existsSync } from "fs";
 import { join, dirname } from "path";
 import { pipeline } from "stream/promises";
 import { Readable } from "stream";
@@ -171,6 +171,3 @@ export function generateRawMessageKey(
   const safeMsgId = messageId.replace(/[^a-zA-Z0-9]/g, "_");
   return `raw/${mailAccountId}/${safeMsgId}.eml`;
 }
-
-// Suppress the unused import warning for createReadStream
-void createReadStream;
