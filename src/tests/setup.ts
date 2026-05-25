@@ -17,9 +17,11 @@ vi.mock("~/server/db", () => ({
     thread: {
       findFirst: vi.fn(),
       findMany: vi.fn(),
+      findUnique: vi.fn().mockResolvedValue({ participantEmails: [], lastMessageAt: new Date(0) }),
       create: vi.fn(),
       update: vi.fn(),
     },
+
     mailAccount: {
       findUnique: vi.fn(),
       findMany: vi.fn(),

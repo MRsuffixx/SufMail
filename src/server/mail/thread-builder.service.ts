@@ -16,11 +16,15 @@ import type { MailAccount } from "../../../generated/prisma";
  * strips Re:/Fwd:/Aw: prefixes, lowercases, collapses whitespace.
  */
 export function normalizeSubject(subject: string): string {
-  return subject
-    .replace(/^(re|fwd|fw|aw|wg|ref|sv|rv)\s*:\s*/gi, "")
-    .trim()
-    .toLowerCase()
-    .replace(/\s+/g, " ");
+  let result = subject.trim();
+  const prefixRe = /^(re|fwd|fw|aw|wg|ref|sv|rv)\s*:\s*/i;
+  // Strip all leading prefixes iteratively
+  let prev: string;
+  do {
+    prev = result;
+    result = result.replace(prefixRe, "");
+  } while (result !== prev);
+  return result.toLowerCase().replace(/\s+/g, " ").trim();
 }
 
 function levenshtein(a: string, b: string): number {

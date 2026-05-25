@@ -18,7 +18,6 @@ import { cn } from "~/lib/ui/utils";
 import type { MessageListItem, LabelInfo } from "~/types/mail";
 import type { ContextMenuItem } from "~/types/ui";
 import {
-  Resize,
   Maximize2,
   Minimize2,
   Focus,

@@ -36,9 +36,9 @@ export const MessageMapper = {
    * Converts a Prisma Message (with optional relations) to a MessageEntity.
    */
   fromPrisma(msg: PrismaMessageWithRelations): MessageEntity {
-    const toAddresses = (msg.toAddresses as EmailAddress[]) ?? [];
-    const ccAddresses = (msg.ccAddresses as EmailAddress[]) ?? [];
-    const bccAddresses = (msg.bccAddresses as EmailAddress[]) ?? [];
+    const toAddresses = (msg.toAddresses as unknown as EmailAddress[]) ?? [];
+    const ccAddresses = (msg.ccAddresses as unknown as EmailAddress[]) ?? [];
+    const bccAddresses = (msg.bccAddresses as unknown as EmailAddress[]) ?? [];
     const headers = (msg.headers as Record<string, string>) ?? {};
     const securityMeta = msg.securityMeta
       ? (msg.securityMeta as unknown as SecurityMeta)

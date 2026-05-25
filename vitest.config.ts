@@ -1,5 +1,8 @@
 import { defineConfig } from "vitest/config";
 import { resolve } from "path";
+import { fileURLToPath } from "url";
+
+const __dirname = fileURLToPath(new URL(".", import.meta.url));
 
 export default defineConfig({
   test: {
@@ -11,18 +14,14 @@ export default defineConfig({
       reporter: ["text", "json", "html"],
       include: ["src/server/**", "src/lib/**", "src/domain/**"],
       exclude: [
-        "src/server/api/routers/**", // tRPC routers tested separately
         "src/**/*.test.ts",
         "src/tests/**",
       ],
     },
-    alias: {
-      "~/": resolve(__dirname, "./src/"),
-    },
   },
   resolve: {
     alias: {
-      "~/": resolve(__dirname, "./src/"),
+      "~": resolve(__dirname, "./src"),
     },
   },
 });
