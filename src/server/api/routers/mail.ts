@@ -333,7 +333,7 @@ export const mailRouter = createTRPCRouter({
           mailAccountId: input.mailAccountId,
           to: input.to,
           cc: input.cc,
-          subject: input.subject.startsWith("Re:")
+          subject: /^re:/i.test(input.subject)
             ? input.subject
             : `Re: ${input.subject}`,
           bodyHtml: input.bodyHtml,

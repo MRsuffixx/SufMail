@@ -160,14 +160,17 @@ export const authConfig: NextAuthConfig = {
     /**
      * Controls whether a sign-in is allowed.
      * Enforces allowedEmailDomains and allowRegistration config.
+     * Domain check applies to ALL providers (credentials AND OAuth).
      */
     async signIn({ user, account }) {
-      // OAuth sign-in
-      if (account?.provider !== "credentials") {
-        if (!user.email) return false;
-        if (!isEmailDomainAllowed(user.email)) return false;
+      // Enforce email domain allowlist for ALL sign-in methods (including OAuth).
+      // This prevents users with disallowed domains from accessing via OAuth
+      // even if they bypass the credentials flow.
+      if (!user.email) return false;
+      if (!isEmailDomainAllowed(user.email)) return false;
 
-        // Check if this is a new user and registration is disabled
+      // For OAuth providers only: check if new user registration is allowed.
+      if (account?.provider !== "credentials") {
         if (!config.auth.allowRegistration) {
           const existing = await db.user.findUnique({
             where: { email: user.email },
