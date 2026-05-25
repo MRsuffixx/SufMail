@@ -1,0 +1,35 @@
+---
+name: Feature Request
+about: Suggest a new feature or improvement
+title: "feat: "
+labels: ["enhancement"]
+assignees: ""
+---
+
+## Problem Statement
+
+Describe the problem this feature solves. What user need does it address?
+
+## Proposed Solution
+
+Describe your proposed solution. How should it work?
+
+## Alternatives Considered
+
+Describe any alternative solutions you've considered.
+
+## UI/UX Changes
+
+If this changes the UI or UX, describe the changes and include mockups if available.
+
+## Configuration Changes
+
+Does this require changes to `config.ts`? If so, document the new options.
+
+## Breaking Changes
+
+Does this introduce any breaking changes? If so, describe them.
+
+## Additional Context
+
+Add any other context or screenshots about the feature request here.
