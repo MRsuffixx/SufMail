@@ -18,7 +18,8 @@ import { db } from "~/server/db";
 import { env } from "~/env";
 import { config } from "~/config";
 import { isEmailDomainAllowed } from "~/lib/config-utils";
-import { verifyPassword, createSystemLabels } from "./helpers";
+import { verifyPassword } from "./helpers";
+import { createSystemLabels } from "~/server/mail/sync";
 
 // ─── Session Type Augmentation ────────────────────────────────────────────────
 

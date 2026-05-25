@@ -4,14 +4,16 @@
  * Defines background workers for:
  * - Mail sync (IMAP → database)
  * - Mail send (database draft → SMTP)
- * - Notifications
+ * - Notifications (email delivery + browser push scaffold)
  */
 
 import { Worker } from "bullmq";
+import nodemailer from "nodemailer";
 import { db } from "~/server/db";
 import { SyncService } from "~/server/mail/sync";
 import { createSmtpService } from "~/server/mail/smtp";
 import { config } from "~/config";
+import { env } from "~/env";
 import {
   getRedisConnection,
   type MailSyncJobData,
@@ -122,30 +124,197 @@ export function createMailSendWorker(): Worker<MailSendJobData> {
 
 // ─── Notification Worker ──────────────────────────────────────────────────────
 
+/**
+ * Builds a system nodemailer transporter from EMAIL_SERVER_* env vars.
+ * Returns null if the system email server is not configured.
+ */
+function getSystemTransporter(): nodemailer.Transporter | null {
+  if (!env.EMAIL_SERVER_HOST || !env.EMAIL_FROM) return null;
+
+  return nodemailer.createTransport({
+    host: env.EMAIL_SERVER_HOST,
+    port: env.EMAIL_SERVER_PORT ?? 587,
+    auth:
+      env.EMAIL_SERVER_USER && env.EMAIL_SERVER_PASSWORD
+        ? { user: env.EMAIL_SERVER_USER, pass: env.EMAIL_SERVER_PASSWORD }
+        : undefined,
+  });
+}
+
+/**
+ * Builds an HTML email body for a notification.
+ */
+function buildNotificationEmail(
+  type: NotificationJobData["type"],
+  payload: Record<string, unknown>,
+  appName: string,
+): { subject: string; html: string; text: string } {
+  switch (type) {
+    case "new_message": {
+      const subject = `New message: ${String(payload.subject ?? "(no subject)")}`;
+      const from = String(payload.fromEmail ?? "");
+      const preview = String(payload.snippet ?? "");
+      return {
+        subject,
+        html: `
+          <p>You have a new message in <strong>${appName}</strong>.</p>
+          <p><strong>From:</strong> ${from}</p>
+          <p><strong>Subject:</strong> ${String(payload.subject ?? "(no subject)")}</p>
+          ${preview ? `<p><strong>Preview:</strong> ${preview}</p>` : ""}
+          <hr/>
+          <p style="color:#888;font-size:12px">
+            You are receiving this because notifications are enabled in ${appName}.
+          </p>`,
+        text: `New message from ${from}: ${String(payload.subject ?? "(no subject)")}${preview ? `\n\n${preview}` : ""}`,
+      };
+    }
+    case "snooze_wakeup": {
+      const subject = `Reminder: ${String(payload.subject ?? "(no subject)")}`;
+      return {
+        subject,
+        html: `
+          <p>Your snoozed message has woken up in <strong>${appName}</strong>.</p>
+          <p><strong>Subject:</strong> ${String(payload.subject ?? "(no subject)")}</p>
+          <hr/>
+          <p style="color:#888;font-size:12px">
+            You are receiving this because you snoozed a message in ${appName}.
+          </p>`,
+        text: `Snoozed message reminder: ${String(payload.subject ?? "(no subject)")}`,
+      };
+    }
+    case "digest": {
+      const count = Number(payload.count ?? 0);
+      const subject = `Your ${appName} digest: ${count} new message${count !== 1 ? "s" : ""}`;
+      return {
+        subject,
+        html: `
+          <p>Here is your <strong>${appName}</strong> digest.</p>
+          <p>You have <strong>${count}</strong> new message${count !== 1 ? "s" : ""} since your last digest.</p>
+          <hr/>
+          <p style="color:#888;font-size:12px">
+            You are receiving this digest because email digest is enabled in ${appName}.
+          </p>`,
+        text: `${appName} digest: ${count} new message${count !== 1 ? "s" : ""}.`,
+      };
+    }
+    default: {
+      return {
+        subject: `${appName} notification`,
+        html: `<p>You have a new notification in <strong>${appName}</strong>.</p>`,
+        text: `You have a new notification in ${appName}.`,
+      };
+    }
+  }
+}
+
 export function createNotificationWorker(): Worker<NotificationJobData> {
   const worker = new Worker<NotificationJobData>(
     "notifications",
     async (job) => {
       const { userId, type, payload } = job.data;
-      console.info(`[Worker:notify] Processing ${type} notification for user ${userId}`);
+      console.info(
+        `[Worker:notify] Processing ${type} notification for user ${userId}`,
+      );
 
-      // Log notification to DB
+      // 1. Always persist to the notification log for in-app display.
       await db.notificationLog.create({
         data: {
           userId,
           type,
           isRead: false,
-          // Cast payload to Prisma-compatible JSON input
-          payload: payload as Parameters<typeof db.notificationLog.create>[0]["data"]["payload"],
+          payload:
+            payload as Parameters<
+              typeof db.notificationLog.create
+            >[0]["data"]["payload"],
         },
       });
 
-      // TODO: Implement browser push and email digest sending
-      // For now, we just record the notification in the database
-      // Browser push: use Web Push API with stored subscription
-      // Email digest: use nodemailer to send a digest email
+      // 2. Fetch user to check preferences and get their email address.
+      const user = await db.user.findUnique({
+        where: { id: userId },
+        select: {
+          email: true,
+          settings: true,
+        },
+      });
 
-      return { logged: true };
+      if (!user?.email) {
+        console.warn(
+          `[Worker:notify] No email for user ${userId}; skipping email delivery`,
+        );
+        return { logged: true, emailed: false };
+      }
+
+      // Read notification preference from user settings (falls back to config default).
+      const prefs = (user.settings ?? {}) as {
+        notificationsEnabled?: boolean;
+      };
+      const notificationsEnabled =
+        prefs.notificationsEnabled ?? config.notifications.browser;
+
+      // 3. Email delivery via the system SMTP transport.
+      //    Gated on: system transport configured + user has notifications enabled.
+      //    For "digest" type, additionally gate on config.notifications.emailDigest.
+      const shouldEmail =
+        notificationsEnabled &&
+        (type !== "digest" || config.notifications.emailDigest);
+
+      if (shouldEmail) {
+        const transporter = getSystemTransporter();
+        if (transporter) {
+          try {
+            const { subject, html, text } = buildNotificationEmail(
+              type,
+              payload,
+              config.app.name,
+            );
+            await transporter.sendMail({
+              from: env.EMAIL_FROM,
+              to: user.email,
+              subject,
+              html,
+              text,
+            });
+            console.info(
+              `[Worker:notify] Email delivered to ${user.email} (type=${type})`,
+            );
+          } catch (err) {
+            // Non-fatal: log but don't fail the job — the DB entry is already created.
+            console.error(
+              `[Worker:notify] Failed to send email to ${user.email}:`,
+              err,
+            );
+          }
+        } else {
+          console.warn(
+            "[Worker:notify] EMAIL_SERVER_HOST not configured; skipping email delivery",
+          );
+        }
+      }
+
+      // 4. Browser push delivery.
+      //    Requires a PushSubscription model in the database to store
+      //    per-device VAPID subscriptions. Add the following to schema.prisma:
+      //
+      //    model PushSubscription {
+      //      id        String @id @default(cuid())
+      //      userId    String
+      //      endpoint  String @unique
+      //      keys      Json   // { p256dh: string, auth: string }
+      //      createdAt DateTime @default(now())
+      //      user      User @relation(fields: [userId], references: [id], onDelete: Cascade)
+      //    }
+      //
+      //    Then install `web-push`, generate VAPID keys, and implement:
+      //
+      //    const subscriptions = await db.pushSubscription.findMany({ where: { userId } });
+      //    for (const sub of subscriptions) {
+      //      await webpush.sendNotification(sub, JSON.stringify({ type, payload }));
+      //    }
+      //
+      //    config.notifications.browser controls whether push is globally enabled.
+
+      return { logged: true, emailed: shouldEmail };
     },
     {
       connection: getRedisConnection(),

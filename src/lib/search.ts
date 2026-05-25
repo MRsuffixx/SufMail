@@ -182,9 +182,8 @@ async function searchWithMeilisearch(
   query: string,
   options: SearchOptions,
 ): Promise<SearchResult> {
-  const { MEILISEARCH_HOST, MEILISEARCH_API_KEY } = await import("~/env").then(
-    (m) => m.env,
-  );
+  const { env } = await import("~/env");
+  const { MEILISEARCH_HOST, MEILISEARCH_API_KEY } = env;
 
   if (!MEILISEARCH_HOST) {
     console.warn(

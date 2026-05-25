@@ -144,6 +144,42 @@ export interface AdvancedSection {
   maintenanceMode: boolean;
 }
 
+export interface RateLimitEndpoint {
+  /** Rolling window in milliseconds */
+  windowMs: number;
+  /** Maximum requests allowed in window */
+  max: number;
+}
+
+export interface BruteForceSection {
+  /** Max failed login attempts before lockout */
+  maxAttempts: number;
+  /** Lockout duration in seconds */
+  lockoutDurationSeconds: number;
+  /** Multiplier applied to backoff on each failed attempt */
+  backoffMultiplier: number;
+}
+
+export interface SecuritySection {
+  rateLimit: {
+    /** Global per-IP limit */
+    global: RateLimitEndpoint;
+    /** Login endpoint limit */
+    login: RateLimitEndpoint;
+    /** Send email endpoint limit */
+    sendEmail: RateLimitEndpoint;
+    /** Manual sync trigger limit */
+    syncTrigger: RateLimitEndpoint;
+    /** Search endpoint limit */
+    search: RateLimitEndpoint;
+    /** Per-user IMAP connection limit (concurrent) */
+    imapConnectionsPerUser: number;
+    /** Per-user SMTP send limit per minute */
+    smtpSendsPerMinute: number;
+  };
+  bruteForce: BruteForceSection;
+}
+
 // ─── Root Interface ──────────────────────────────────────────────────────────
 
 export interface AppConfig {
@@ -156,6 +192,7 @@ export interface AppConfig {
   storage: StorageSection;
   notifications: NotificationsSection;
   advanced: AdvancedSection;
+  security: SecuritySection;
 }
 
 // ─── Default Config ──────────────────────────────────────────────────────────
@@ -268,5 +305,22 @@ export const config: AppConfig = {
     searchProvider: "database",
     logLevel: "info",
     maintenanceMode: false,
+  },
+
+  security: {
+    rateLimit: {
+      global: { windowMs: 60_000, max: 200 },
+      login: { windowMs: 900_000, max: 10 },
+      sendEmail: { windowMs: 60_000, max: 20 },
+      syncTrigger: { windowMs: 60_000, max: 5 },
+      search: { windowMs: 60_000, max: 30 },
+      imapConnectionsPerUser: 3,
+      smtpSendsPerMinute: 10,
+    },
+    bruteForce: {
+      maxAttempts: 5,
+      lockoutDurationSeconds: 900,
+      backoffMultiplier: 2,
+    },
   },
 };

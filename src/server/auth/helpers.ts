@@ -1,14 +1,10 @@
 /**
  * MailForge — Auth Helpers
  *
- * Helper functions for authentication: password hashing,
- * system label creation on user registration.
+ * Helper functions for authentication: password hashing and verification.
  */
 
 import bcryptjs from "bcryptjs";
-import { createSystemLabels } from "~/server/mail/sync";
-
-export { createSystemLabels };
 
 const SALT_ROUNDS = 12;
 

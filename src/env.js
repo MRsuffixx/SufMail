@@ -50,10 +50,16 @@ export const env = createEnv({
     // ── Encryption ────────────────────────────────────────────────────────
     // Must be a 64-char hex string (32 bytes for AES-256-GCM)
     ENCRYPTION_KEY: z.string().length(64).optional(),
+    // Active key version (1 = ENCRYPTION_KEY, higher = ENCRYPTION_KEY_V<n>)
+    ENCRYPTION_KEY_VERSION: z.coerce.number().int().min(1).default(1),
 
     // ── Search ────────────────────────────────────────────────────────────
     MEILISEARCH_HOST: z.string().url().optional(),
     MEILISEARCH_API_KEY: z.string().optional(),
+
+    // ── Observability ─────────────────────────────────────────────────────
+    OTEL_EXPORTER_OTLP_ENDPOINT: z.string().url().optional(),
+    METRICS_ALLOWED_IPS: z.string().optional(),
   },
 
   /**
@@ -91,8 +97,11 @@ export const env = createEnv({
     STORAGE_REGION: process.env.STORAGE_REGION,
     STORAGE_ENDPOINT: process.env.STORAGE_ENDPOINT,
     ENCRYPTION_KEY: process.env.ENCRYPTION_KEY,
+    ENCRYPTION_KEY_VERSION: process.env.ENCRYPTION_KEY_VERSION,
     MEILISEARCH_HOST: process.env.MEILISEARCH_HOST,
     MEILISEARCH_API_KEY: process.env.MEILISEARCH_API_KEY,
+    OTEL_EXPORTER_OTLP_ENDPOINT: process.env.OTEL_EXPORTER_OTLP_ENDPOINT,
+    METRICS_ALLOWED_IPS: process.env.METRICS_ALLOWED_IPS,
     NEXT_PUBLIC_APP_URL: process.env.NEXT_PUBLIC_APP_URL,
     NEXT_PUBLIC_STORAGE_PUBLIC_URL: process.env.NEXT_PUBLIC_STORAGE_PUBLIC_URL,
   },
