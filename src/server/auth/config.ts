@@ -111,7 +111,7 @@ function buildProviders(): NextAuthConfig["providers"] {
       MicrosoftEntraId({
         clientId: env.MICROSOFT_CLIENT_ID,
         clientSecret: env.MICROSOFT_CLIENT_SECRET,
-        tenantId: "common",
+        // tenantId: "common" — use the MICROSOFT_TENANT_ID env var if needed
       }),
     );
   }
