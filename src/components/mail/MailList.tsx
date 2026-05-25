@@ -1,7 +1,6 @@
 "use client";
 
 import { useCallback, useMemo, useRef } from "react";
-import { FixedSizeList } from "react-window";
 import { motion } from "framer-motion";
 import { formatRelativeTime, cn } from "~/lib/ui/utils";
 import { Star, Paperclip, ChevronRight } from "lucide-react";
@@ -17,154 +16,14 @@ interface MailListProps {
   labels?: LabelInfo[];
 }
 
-interface MailListItemProps {
-  index: number;
-  style: React.CSSProperties;
-  data: {
-    messages: MessageListItem[];
-    labels: LabelInfo[];
-    selectedMessageId: string | null;
-    hoveredMessageId: string | null;
-    onMessageClick?: (message: MessageListItem) => void;
-    onMessageRightClick?: (message: MessageListItem, e: React.MouseEvent) => void;
-  };
-}
-
-const MailListRow = ({ index, style, data }: MailListItemProps) => {
-  const { messages, selectedMessageId, hoveredMessageId, onMessageClick, onMessageRightClick } = data;
-  const message = messages[index];
-  if (!message) return null;
-
-  const isSelected = selectedMessageId === message.id;
-  const isHovered = hoveredMessageId === message.id;
-  const { setHoveredMessage } = useMailStore();
-
-  const handleMouseEnter = useCallback(() => {
-    setHoveredMessage(message.id);
-  }, [message.id, setHoveredMessage]);
-
-  const handleMouseLeave = useCallback(() => {
-    setHoveredMessage(null);
-  }, [setHoveredMessage]);
-
-  const handleClick = useCallback(() => {
-    onMessageClick?.(message);
-  }, [message, onMessageClick]);
-
-  const handleContextMenu = useCallback(
-    (e: React.MouseEvent) => {
-      e.preventDefault();
-      onMessageRightClick?.(message, e);
-    },
-    [message, onMessageRightClick]
-  );
-
-  const fromDisplay = message.fromName || message.fromEmail;
-
-  return (
-    <div
-      style={style}
-      className={cn(
-        "group flex items-center border-b border-white/5 px-4 cursor-pointer transition-colors",
-        isSelected && "bg-blue-600/20",
-        !isSelected && isHovered && "bg-white/5",
-        !isSelected && !isHovered && "hover:bg-white/5"
-      )}
-      onMouseEnter={handleMouseEnter}
-      onMouseLeave={handleMouseLeave}
-      onClick={handleClick}
-      onContextMenu={handleContextMenu}
-    >
-      {/* Star indicator */}
-      <div className="flex-shrink-0 w-8 flex items-center justify-center">
-        {message.isStarred ? (
-          <Star className="h-4 w-4 text-yellow-500 fill-yellow-500" />
-        ) : (
-          <div className="h-2 w-2 rounded-full bg-gray-600" />
-        )}
-      </div>
-
-      {/* Sender */}
-      <div className={cn(
-        "flex-shrink-0 w-40 truncate text-sm font-medium",
-        !message.isRead ? "text-gray-200" : "text-gray-400"
-      )}>
-        {fromDisplay}
-      </div>
-
-      {/* Subject and snippet */}
-      <div className="flex-1 min-w-0 px-4">
-        <div className="flex items-center gap-2">
-          {message.labels.length > 0 && (
-            <div className="flex items-center gap-1">
-              {message.labels.slice(0, 2).map((label) => (
-                <div
-                  key={label.id}
-                  className="h-2 w-2 rounded-full"
-                  style={{ backgroundColor: label.color ?? "#666" }}
-                />
-              ))}
-            </div>
-          )}
-          <span className={cn(
-            "truncate text-sm",
-            !message.isRead ? "text-gray-200 font-medium" : "text-gray-400"
-          )}>
-            {message.subject || "(No subject)"}
-          </span>
-        </div>
-        <p className="truncate text-xs text-gray-500 mt-0.5">
-          {message.snippet || "No preview available"}
-        </p>
-      </div>
-
-      {/* Attachment indicator */}
-      <div className="flex-shrink-0 w-16 flex items-center justify-end">
-        {message.attachmentCount > 0 && (
-          <div className="flex items-center gap-1 text-gray-500">
-            <Paperclip className="h-3.5 w-3.5" />
-            <span className="text-xs">{message.attachmentCount}</span>
-          </div>
-        )}
-      </div>
-
-      {/* Date */}
-      <div className="flex-shrink-0 w-20 text-right">
-        <span className="text-xs text-gray-500">
-          {formatRelativeTime(message.receivedAt ?? message.sentAt)}
-        </span>
-      </div>
-
-      {/* Expand arrow for threads */}
-      <div className="flex-shrink-0 w-6 flex items-center justify-center">
-        {message.threadId && (
-          <ChevronRight className="h-4 w-4 text-gray-600" />
-        )}
-      </div>
-    </div>
-  );
-};
-
 export function MailList({
   messages,
   isLoading,
   onMessageClick,
   onMessageRightClick,
 }: MailListProps) {
-  const listRef = useRef<FixedSizeList>(null);
-  const { selectedMessageId, hoveredMessageId } = useMailStore();
-
-  const itemData = useMemo(
-    () => ({
-      messages,
-      labels: [] as LabelInfo[],
-      selectedMessageId,
-      hoveredMessageId,
-      onMessageClick,
-      onMessageRightClick,
-    }),
-    [messages, selectedMessageId, hoveredMessageId, onMessageClick, onMessageRightClick]
-  );
+  const listRef = useRef<HTMLDivElement>(null);
+  const { selectedMessageId, hoveredMessageId, setHoveredMessage } = useMailStore();
 
   const handleKeyDown = useCallback(
     (e: React.KeyboardEvent) => {
@@ -177,14 +36,12 @@ export function MailList({
         const nextMessage = messages[currentIndex + 1];
         if (nextMessage) {
           useMailStore.getState().setSelectedMessage(nextMessage.id);
-          listRef.current?.scrollToItem(currentIndex + 1);
         }
       } else if (e.key === "ArrowUp" && currentIndex > 0) {
         e.preventDefault();
         const prevMessage = messages[currentIndex - 1];
         if (prevMessage) {
           useMailStore.getState().setSelectedMessage(prevMessage.id);
-          listRef.current?.scrollToItem(currentIndex - 1);
         }
       } else if (e.key === "Enter" && selectedMessageId) {
         const message = messages.find((m) => m.id === selectedMessageId);
@@ -225,21 +82,102 @@ export function MailList({
 
   return (
     <div
-      className="h-full w-full"
+      ref={listRef}
+      className="h-full overflow-y-auto"
       onKeyDown={handleKeyDown}
       tabIndex={0}
     >
-      <FixedSizeList
-        ref={listRef}
-        height={window.innerHeight - 200}
-        width="100%"
-        itemCount={messages.length}
-        itemSize={72}
-        itemData={itemData}
-        overscanCount={5}
-      >
-        {MailListRow}
-      </FixedSizeList>
+      {messages.map((message) => {
+        const isSelected = selectedMessageId === message.id;
+        const isHovered = hoveredMessageId === message.id;
+
+        return (
+          <motion.div
+            key={message.id}
+            layout
+            className={cn(
+              "group flex items-center border-b border-white/5 px-4 py-3 cursor-pointer transition-colors",
+              isSelected && "bg-blue-600/20",
+              !isSelected && isHovered && "bg-white/5",
+              !isSelected && !isHovered && "hover:bg-white/5"
+            )}
+            onMouseEnter={() => setHoveredMessage(message.id)}
+            onMouseLeave={() => setHoveredMessage(null)}
+            onClick={() => onMessageClick?.(message)}
+            onContextMenu={(e) => {
+              e.preventDefault();
+              onMessageRightClick?.(message, e);
+            }}
+          >
+            {/* Star indicator */}
+            <div className="flex-shrink-0 w-8 flex items-center justify-center">
+              {message.isStarred ? (
+                <Star className="h-4 w-4 text-yellow-500 fill-yellow-500" />
+              ) : (
+                <div className="h-2 w-2 rounded-full bg-gray-600" />
+              )}
+            </div>
+
+            {/* Sender */}
+            <div className={cn(
+              "flex-shrink-0 w-40 truncate text-sm font-medium",
+              !message.isRead ? "text-gray-200" : "text-gray-400"
+            )}>
+              {message.fromName || message.fromEmail}
+            </div>
+
+            {/* Subject and snippet */}
+            <div className="flex-1 min-w-0 px-4">
+              <div className="flex items-center gap-2">
+                {message.labels.length > 0 && (
+                  <div className="flex items-center gap-1">
+                    {message.labels.slice(0, 2).map((label) => (
+                      <div
+                        key={label.id}
+                        className="h-2 w-2 rounded-full"
+                        style={{ backgroundColor: label.color ?? "#666" }}
+                      />
+                    ))}
+                  </div>
+                )}
+                <span className={cn(
+                  "truncate text-sm",
+                  !message.isRead ? "text-gray-200 font-medium" : "text-gray-400"
+                )}>
+                  {message.subject || "(No subject)"}
+                </span>
+              </div>
+              <p className="truncate text-xs text-gray-500 mt-0.5">
+                {message.snippet || "No preview available"}
+              </p>
+            </div>
+
+            {/* Attachment indicator */}
+            <div className="flex-shrink-0 w-16 flex items-center justify-end">
+              {message.attachmentCount > 0 && (
+                <div className="flex items-center gap-1 text-gray-500">
+                  <Paperclip className="h-3.5 w-3.5" />
+                  <span className="text-xs">{message.attachmentCount}</span>
+                </div>
+              )}
+            </div>
+
+            {/* Date */}
+            <div className="flex-shrink-0 w-20 text-right">
+              <span className="text-xs text-gray-500">
+                {formatRelativeTime(message.receivedAt ?? message.sentAt)}
+              </span>
+            </div>
+
+            {/* Expand arrow for threads */}
+            <div className="flex-shrink-0 w-6 flex items-center justify-center">
+              {message.threadId && (
+                <ChevronRight className="h-4 w-4 text-gray-600" />
+              )}
+            </div>
+          </motion.div>
+        );
+      })}
     </div>
   );
 }

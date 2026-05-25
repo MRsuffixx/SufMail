@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { motion } from "framer-motion";
-import { useUIStore, useMailListStore, useWindowStore } from "~/stores";
+import { useUIStore, useMailStore, useMailListStore, useWindowStore } from "~/stores";
 import { Sidebar } from "~/components/mail/Sidebar";
 import { MailList } from "~/components/mail/MailList";
 import { MailViewer } from "~/components/mail/MailViewer";
@@ -13,15 +13,11 @@ import { CommandPalette } from "~/components/mail/CommandPalette";
 import { WindowManager } from "~/components/windows/WindowManager";
 import { ToastContainer } from "~/components/ui/Toast";
 import { ContextMenu } from "~/components/ui/ContextMenu";
-import { openComposeWindow, openSettingsWindow, openAccountManagerWindow, openMailViewerWindow } from "~/components/windows/useWindow";
+import { openComposeWindow, openSettingsWindow, openAccountManagerWindow } from "~/components/windows/useWindow";
 import { cn } from "~/lib/ui/utils";
-import type { MessageListItem, LabelInfo } from "~/types/mail";
+import type { MessageListItem, LabelInfo, FullMessage } from "~/types/mail";
 import type { ContextMenuItem } from "~/types/ui";
-import {
-  Maximize2,
-  Minimize2,
-  Focus,
-} from "lucide-react";
+import { Focus } from "lucide-react";
 
 interface AppLayoutProps {
   labels?: LabelInfo[];
@@ -29,21 +25,16 @@ interface AppLayoutProps {
 
 export function AppLayout({ labels = [] }: AppLayoutProps) {
   const {
-    sidebarCollapsed,
     focusModeEnabled,
     toggleFocusMode,
-    splitViewEnabled,
     activePane,
     setActivePane,
   } = useUIStore();
-  const { messages, setMessages, setLoading, selectedMessageId, setSelectedMessage } = useMailListStore();
-  const { windows, openWindow } = useWindowStore();
+  const { selectedMessageId, setSelectedMessage } = useMailStore();
+  const { messages, setMessages } = useMailListStore();
+  const { openWindow } = useWindowStore();
 
-  const [contextMenu, setContextMenu] = useState<{
-    isOpen: boolean;
-    position: { x: number; y: number };
-    items: ContextMenuItem[];
-  }>({ isOpen: false, position: { x: 0, y: 0 }, items: [] });
+  const [selectedMessage, setSelectedMessageLocal] = useState<FullMessage | null>(null);
 
   useEffect(() => {
     setMessages(mockMessages);
@@ -53,7 +44,33 @@ export function AppLayout({ labels = [] }: AppLayoutProps) {
     (message: MessageListItem) => {
       setSelectedMessage(message.id);
       setActivePane("viewer");
-      openMailViewerWindow(message.id, message.subject || "Mail");
+      setSelectedMessageLocal({
+        id: message.id,
+        threadId: message.threadId,
+        messageId: message.messageId,
+        subject: message.subject ?? null,
+        fromEmail: message.fromEmail,
+        fromName: message.fromName ?? null,
+        snippet: message.snippet ?? null,
+        isRead: message.isRead,
+        isStarred: message.isStarred,
+        isSnoozed: message.isSnoozed,
+        snoozeUntil: message.snoozeUntil,
+        receivedAt: message.receivedAt,
+        sentAt: message.sentAt,
+        attachmentCount: message.attachmentCount,
+        labels: message.labels,
+        toAddresses: [],
+        ccAddresses: [],
+        bccAddresses: [],
+        bodyHtml: null,
+        bodyText: null,
+        attachments: [],
+        headers: {},
+        size: 0,
+        mailAccountId: "",
+        rawPath: null,
+      });
     },
     [setSelectedMessage, setActivePane]
   );
@@ -88,23 +105,14 @@ export function AppLayout({ labels = [] }: AppLayoutProps) {
     openWindow("compose", "Forward", { forwardMessageId: message.id });
   }, [openWindow]);
 
+  const [contextMenu, setContextMenu] = useState<{
+    isOpen: boolean;
+    position: { x: number; y: number };
+    items: ContextMenuItem[];
+  }>({ isOpen: false, position: { x: 0, y: 0 }, items: [] });
+
   const handleCloseContextMenu = useCallback(() => {
     setContextMenu((prev) => ({ ...prev, isOpen: false }));
-  }, []);
-
-  const renderWindowContent = useCallback((type: string, data?: Record<string, unknown>) => {
-    switch (type) {
-      case "compose":
-        return <Compose replyTo={data?.replyTo as Parameters<typeof Compose>[0]["replyTo"]} onClose={() => {}} />;
-      case "settings":
-        return <Settings />;
-      case "account-manager":
-        return <AccountManager />;
-      case "mail-viewer":
-        return <MailViewer messageId={data?.messageId as string} />;
-      default:
-        return null;
-    }
   }, []);
 
   return (
@@ -145,8 +153,7 @@ export function AppLayout({ labels = [] }: AppLayoutProps) {
           <div
             className={cn(
               "border-r border-white/10 transition-all duration-200",
-              focusModeEnabled ? "w-0" : activePane === "viewer" ? "w-2/5" : "w-full",
-              splitViewEnabled && "w-1/3"
+              focusModeEnabled ? "w-0" : activePane === "viewer" ? "w-2/5" : "w-full"
             )}
           >
             <MailList
@@ -158,9 +165,13 @@ export function AppLayout({ labels = [] }: AppLayoutProps) {
           </div>
 
           {/* Mail Viewer */}
-          {activePane === "viewer" && selectedMessageId && (
+          {activePane === "viewer" && selectedMessage && (
             <div className="flex-1">
-              <MailViewer messageId={selectedMessageId} onReply={handleReply} onForward={handleForward} />
+              <MailViewer
+                message={selectedMessage}
+                onReply={handleReply}
+                onForward={handleForward}
+              />
             </div>
           )}
         </div>

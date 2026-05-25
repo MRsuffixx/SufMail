@@ -130,14 +130,14 @@ export function Compose({ draftId, replyTo, forwardFrom, onClose }: ComposeProps
 
     setAttachments((prev) => [...prev, ...newAttachments]);
 
-    newAttachments.forEach((attachment) => {
-      const formData = new FormData();
-      formData.append("file", files[0]);
+    newAttachments.forEach((attachment, index) => {
+      const fileToUpload = files[index];
+      if (!fileToUpload) return;
 
       setTimeout(() => {
         setAttachments((prev) =>
           prev.map((a) =>
-            a.id === attachment.id ? { ...a, progress: 100, status: "complete" as const, url: URL.createObjectURL(file) } : a
+            a.id === attachment.id ? { ...a, progress: 100, status: "complete" as const, url: URL.createObjectURL(fileToUpload) } : a
           )
         );
       }, 1000);
@@ -158,18 +158,15 @@ export function Compose({ draftId, replyTo, forwardFrom, onClose }: ComposeProps
     setIsSending(true);
 
     sendMessageMutation.mutate({
+      mailAccountId: "placeholder",
       to: to.map((r) => ({ email: r.email, name: r.name })),
       cc: cc.length > 0 ? cc.map((r) => ({ email: r.email, name: r.name })) : undefined,
       bcc: bcc.length > 0 ? bcc.map((r) => ({ email: r.email, name: r.name })) : undefined,
       subject,
       bodyHtml: editor?.getHTML() ?? "",
-      bodyText: editor?.getText() ?? "",
-      attachments: attachments
-        .filter((a) => a.status === "complete")
-        .map((a) => ({ filename: a.filename, url: a.url!, mimeType: a.mimeType })),
-      scheduledAt: isScheduled && scheduledDate ? new Date(scheduledDate) : undefined,
+      scheduledAt: isScheduled && scheduledDate ? scheduledDate : undefined,
     });
-  }, [to, cc, bcc, subject, editor, attachments, isScheduled, scheduledDate, sendMessageMutation, addToast]);
+  }, [to, cc, bcc, subject, editor, isScheduled, scheduledDate, sendMessageMutation, addToast]);
 
   const handleClose = useCallback(() => {
     onClose?.();

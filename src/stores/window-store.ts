@@ -100,7 +100,8 @@ export const useWindowStore = create<WindowStore>()(
           let newActiveId = state.activeWindowId;
           if (state.activeWindowId === id) {
             const windowArray = Array.from(newWindows.values());
-            newActiveId = windowArray.length > 0 ? windowArray[windowArray.length - 1].id : null;
+            const lastWindow = windowArray[windowArray.length - 1];
+            newActiveId = lastWindow ? lastWindow.id : null;
           }
 
           return {
@@ -123,7 +124,8 @@ export const useWindowStore = create<WindowStore>()(
             const otherWindows = Array.from(newWindows.values()).filter(
               (w) => !w.isMinimized
             );
-            newActiveId = otherWindows.length > 0 ? otherWindows[otherWindows.length - 1].id : null;
+            const lastWindow = otherWindows[otherWindows.length - 1];
+            newActiveId = lastWindow ? lastWindow.id : null;
           }
 
           return { windows: newWindows, activeWindowId: newActiveId };
@@ -158,15 +160,18 @@ export const useWindowStore = create<WindowStore>()(
         const window = get().windows.get(id);
         if (!window || window.isMinimized) return;
 
-        set((state) => ({
-          activeWindowId: id,
-          nextZIndex: state.nextZIndex + 1,
-          windows: new Map(
-            Array.from(state.windows.entries()).map(([wid, w]) =>
-              wid === id ? { ...w, zIndex: state.nextZIndex + 1 } : w
-            )
-          ),
-        }));
+        set((state) => {
+          const newZIndex = state.nextZIndex + 1;
+          const updatedWindows = new Map<string, WindowConfig>();
+          for (const [wid, w] of state.windows) {
+            updatedWindows.set(wid, wid === id ? { ...w, zIndex: newZIndex } : w);
+          }
+          return {
+            activeWindowId: id,
+            nextZIndex: newZIndex,
+            windows: updatedWindows,
+          };
+        });
       },
 
       bringToFront: (id) => {
@@ -211,13 +216,13 @@ export const useWindowStore = create<WindowStore>()(
         });
       },
 
-      updateWindowState: (id, state) => {
+      updateWindowState: (id, newState) => {
         set((state) => {
           const window = state.windows.get(id);
           if (!window) return state;
 
           const newWindows = new Map(state.windows);
-          newWindows.set(id, { ...window, state });
+          newWindows.set(id, { ...window, state: newState });
           return { windows: newWindows };
         });
       },
@@ -248,14 +253,14 @@ export const useWindowStore = create<WindowStore>()(
     {
       name: "mailforge-windows",
       partialize: (state) => ({
-        windows: Array.from(state.windows.entries()),
+        windows: Array.from(state.windows.values()),
         nextZIndex: state.nextZIndex,
       }),
       merge: (persistedState: unknown, currentState) => {
-        const stored = persistedState as { windows?: [string, WindowConfig][]; nextZIndex?: number } | undefined;
+        const stored = persistedState as { windows?: WindowConfig[]; nextZIndex?: number } | undefined;
         return {
           ...currentState,
-          windows: new Map(stored?.windows ?? []),
+          windows: new Map((stored?.windows ?? []).map(w => [w.id, w])),
           nextZIndex: stored?.nextZIndex ?? 100,
         };
       },

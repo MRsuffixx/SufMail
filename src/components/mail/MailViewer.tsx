@@ -7,90 +7,44 @@ import {
   Star,
   Reply,
   Forward,
-  MoreHorizontal,
-  ChevronDown,
-  ChevronUp,
   Paperclip,
   Download,
   ExternalLink,
   Trash2,
   Archive,
   Mail,
-  Flag,
-  Clock,
 } from "lucide-react";
 import type { FullMessage, AttachmentInfo, EmailAddress } from "~/types/mail";
-import { api } from "~/trpc/react";
 import { useToastStore } from "~/stores";
 
 interface MailViewerProps {
-  messageId: string;
+  message: FullMessage;
   onReply?: (message: FullMessage) => void;
   onForward?: (message: FullMessage) => void;
+  onToggleRead?: (messageId: string, isRead: boolean) => void;
+  onToggleStar?: (messageId: string, isStarred: boolean) => void;
 }
 
-export function MailViewer({ messageId, onReply, onForward }: MailViewerProps) {
-  const [expandedMessages, setExpandedMessages] = useState<Set<string>>(new Set());
+export function MailViewer({ message, onReply, onForward, onToggleRead, onToggleStar }: MailViewerProps) {
   const [showHeaders, setShowHeaders] = useState(false);
   const { addToast } = useToastStore();
 
-  const { data: message, isLoading } = api.mail.getMessage.useQuery(
-    { id: messageId },
-    { enabled: !!messageId }
-  );
-
-  const toggleReadMutation = api.mail.toggleRead.useMutation({
-    onSuccess: () => {
-      addToast({ type: "success", title: "Message marked as read" });
-    },
-    onError: () => {
-      addToast({ type: "error", title: "Failed to update message" });
-    },
-  });
-
-  const toggleStarMutation = api.mail.toggleStar.useMutation({
-    onSuccess: () => {
-      addToast({ type: "success", title: "Star updated" });
-    },
-    onError: () => {
-      addToast({ type: "error", title: "Failed to update star" });
-    },
-  });
-
-  const toggleMessageExpanded = useCallback((id: string) => {
-    setExpandedMessages((prev) => {
-      const next = new Set(prev);
-      if (next.has(id)) {
-        next.delete(id);
-      } else {
-        next.add(id);
-      }
-      return next;
-    });
-  }, []);
-
   const handleToggleRead = useCallback(() => {
-    if (message) {
-      toggleReadMutation.mutate({ id: message.id, read: !message.isRead });
-    }
-  }, [message, toggleReadMutation]);
+    onToggleRead?.(message.id, !message.isRead);
+    addToast({ type: "success", title: message.isRead ? "Marked as unread" : "Marked as read" });
+  }, [message.id, message.isRead, onToggleRead, addToast]);
 
   const handleToggleStar = useCallback(() => {
-    if (message) {
-      toggleStarMutation.mutate({ id: message.id, starred: !message.isStarred });
-    }
-  }, [message, toggleStarMutation]);
+    onToggleStar?.(message.id, !message.isStarred);
+    addToast({ type: "success", title: message.isStarred ? "Star removed" : "Star added" });
+  }, [message.id, message.isStarred, onToggleStar, addToast]);
 
   const handleReply = useCallback(() => {
-    if (message) {
-      onReply?.(message);
-    }
+    onReply?.(message);
   }, [message, onReply]);
 
   const handleForward = useCallback(() => {
-    if (message) {
-      onForward?.(message);
-    }
+    onForward?.(message);
   }, [message, onForward]);
 
   const handleDownloadAttachment = useCallback((attachment: AttachmentInfo) => {
@@ -100,24 +54,6 @@ export function MailViewer({ messageId, onReply, onForward }: MailViewerProps) {
       addToast({ type: "error", title: "Attachment URL not available" });
     }
   }, [addToast]);
-
-  if (isLoading) {
-    return (
-      <div className="flex items-center justify-center h-full py-12">
-        <div className="h-8 w-8 animate-spin rounded-full border-2 border-blue-500 border-t-transparent" />
-      </div>
-    );
-  }
-
-  if (!message) {
-    return (
-      <div className="flex items-center justify-center h-full">
-        <div className="text-center">
-          <p className="text-sm text-gray-500">Message not found</p>
-        </div>
-      </div>
-    );
-  }
 
   const formatAddress = (addr: EmailAddress) => {
     return addr.name ? `${addr.name} <${addr.email}>` : addr.email;
@@ -211,7 +147,7 @@ export function MailViewer({ messageId, onReply, onForward }: MailViewerProps) {
             </div>
             <div className="mt-1 flex items-center gap-4 text-xs text-gray-500">
               <span>
-                {message.toAddresses.map((a) => formatAddress(a)).join(", ")}
+                To: {message.toAddresses.map((a) => formatAddress(a)).join(", ")}
               </span>
               <span>{formatRelativeTime(message.receivedAt ?? message.sentAt)}</span>
             </div>

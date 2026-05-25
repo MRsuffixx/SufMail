@@ -2,7 +2,6 @@
 
 import { useState, useCallback } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { api } from "~/trpc/react";
 import { useToastStore } from "~/stores";
 import { cn } from "~/lib/ui/utils";
 import {
@@ -22,7 +21,6 @@ interface Account {
   id: string;
   email: string;
   name: string;
-  provider: string;
   isDefault: boolean;
   syncStatus: "idle" | "syncing" | "error" | "success";
   lastSyncAt: Date | null;
@@ -30,9 +28,23 @@ interface Account {
   unreadCount: number;
 }
 
+const mockAccounts: Account[] = [
+  {
+    id: "1",
+    email: "user@gmail.com",
+    name: "Personal Email",
+    isDefault: true,
+    syncStatus: "success",
+    lastSyncAt: new Date(),
+    messageCount: 1234,
+    unreadCount: 5,
+  },
+];
+
 export function AccountManager() {
   const [expandedAccountId, setExpandedAccountId] = useState<string | null>(null);
   const [showAddForm, setShowAddForm] = useState(false);
+  const [accounts, setAccounts] = useState<Account[]>(mockAccounts);
   const [isTestingConnection, setIsTestingConnection] = useState(false);
   const [connectionStatus, setConnectionStatus] = useState<"idle" | "success" | "error">("idle");
   const [formData, setFormData] = useState({
@@ -44,25 +56,6 @@ export function AccountManager() {
     smtpPort: 587,
   });
 
-  const { data: accounts, isLoading } = api.accounts.listAccounts.useQuery();
-  const addAccountMutation = api.accounts.addAccount.useMutation({
-    onSuccess: () => {
-      addToast({ type: "success", title: "Account added successfully" });
-      setShowAddForm(false);
-      setFormData({ email: "", password: "", imapHost: "imap.gmail.com", imapPort: 993, smtpHost: "smtp.gmail.com", smtpPort: 587 });
-    },
-    onError: (error) => {
-      addToast({ type: "error", title: "Failed to add account", message: error.message });
-    },
-  });
-  const deleteAccountMutation = api.accounts.deleteAccount.useMutation({
-    onSuccess: () => {
-      addToast({ type: "success", title: "Account deleted" });
-    },
-    onError: (error) => {
-      addToast({ type: "error", title: "Failed to delete account", message: error.message });
-    },
-  });
   const { addToast } = useToastStore();
 
   const handleTestConnection = useCallback(async () => {
@@ -83,34 +76,35 @@ export function AccountManager() {
   }, [addToast]);
 
   const handleAddAccount = useCallback(() => {
-    addAccountMutation.mutate({
+    const newAccount: Account = {
+      id: Math.random().toString(36).substring(7),
       email: formData.email,
-      password: formData.password,
-      imap: { host: formData.imapHost, port: formData.imapPort, tls: true },
-      smtp: { host: formData.smtpHost, port: formData.smtpPort, secure: false },
-    });
-  }, [formData, addAccountMutation]);
+      name: formData.email.split("@")[0] || "New Account",
+      isDefault: accounts.length === 0,
+      syncStatus: "idle",
+      lastSyncAt: null,
+      messageCount: 0,
+      unreadCount: 0,
+    };
+    setAccounts((prev) => [...prev, newAccount]);
+    setShowAddForm(false);
+    setFormData({ email: "", password: "", imapHost: "imap.gmail.com", imapPort: 993, smtpHost: "smtp.gmail.com", smtpPort: 587 });
+    addToast({ type: "success", title: "Account added successfully" });
+  }, [formData, accounts.length, addToast]);
 
   const handleDeleteAccount = useCallback(
     (accountId: string) => {
       if (confirm("Are you sure you want to delete this account?")) {
-        deleteAccountMutation.mutate({ id: accountId });
+        setAccounts((prev) => prev.filter((a) => a.id !== accountId));
+        addToast({ type: "success", title: "Account deleted" });
       }
     },
-    [deleteAccountMutation]
+    [addToast]
   );
 
   const toggleExpanded = useCallback((accountId: string) => {
     setExpandedAccountId((prev) => (prev === accountId ? null : accountId));
   }, []);
-
-  if (isLoading) {
-    return (
-      <div className="flex items-center justify-center h-full py-12">
-        <div className="h-8 w-8 animate-spin rounded-full border-2 border-blue-500 border-t-transparent" />
-      </div>
-    );
-  }
 
   return (
     <div className="flex h-full flex-col bg-gray-900">
@@ -244,16 +238,11 @@ export function AccountManager() {
                   </motion.button>
                   <motion.button
                     onClick={handleAddAccount}
-                    disabled={addAccountMutation.isPending}
                     whileHover={{ scale: 1.02 }}
                     whileTap={{ scale: 0.98 }}
                     className="flex items-center gap-2 rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-500 disabled:opacity-50 transition-colors"
                   >
-                    {addAccountMutation.isPending ? (
-                      <RefreshCw className="h-4 w-4 animate-spin" />
-                    ) : (
-                      <Plus className="h-4 w-4" />
-                    )}
+                    <Plus className="h-4 w-4" />
                     Add Account
                   </motion.button>
                 </div>
@@ -265,7 +254,7 @@ export function AccountManager() {
 
       {/* Account List */}
       <div className="flex-1 overflow-y-auto p-4">
-        {accounts && accounts.length === 0 ? (
+        {accounts.length === 0 ? (
           <div className="flex flex-col items-center justify-center py-12">
             <div className="rounded-full bg-gray-800 p-4">
               <Mail className="h-12 w-12 text-gray-600" />
@@ -275,7 +264,7 @@ export function AccountManager() {
           </div>
         ) : (
           <div className="space-y-2">
-            {accounts?.map((account) => (
+            {accounts.map((account) => (
               <motion.div
                 key={account.id}
                 initial={{ opacity: 0 }}
@@ -287,11 +276,11 @@ export function AccountManager() {
                   onClick={() => toggleExpanded(account.id)}
                 >
                   <div className="flex h-10 w-10 items-center justify-center rounded-full bg-blue-600/20 text-sm font-medium text-blue-400">
-                    {account.email[0].toUpperCase()}
+                    {(account.email[0] ?? "?").toUpperCase()}
                   </div>
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2">
-                      <span className="text-sm font-medium text-gray-200 truncate">{account.name || account.email}</span>
+                      <span className="text-sm font-medium text-gray-200 truncate">{account.name}</span>
                       {account.isDefault && (
                         <span className="rounded bg-blue-600/20 px-2 py-0.5 text-xs text-blue-400">Default</span>
                       )}

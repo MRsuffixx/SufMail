@@ -16,7 +16,7 @@ import {
 
 interface WindowProps {
   config: WindowConfig;
-  children: React.ReactNode;
+  children?: React.ReactNode;
   onClose?: () => void;
 }
 
