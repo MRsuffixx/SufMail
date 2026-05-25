@@ -139,9 +139,7 @@ export class ImapService {
 
     await client.mailboxOpen(mailbox, { readOnly: true });
 
-    const searchCriteria = since
-      ? { since }
-      : { all: true };
+    const searchCriteria = since ? { since } : { all: true as const };
 
     const uids: number[] = [];
     for await (const msg of client.fetch(searchCriteria, { uid: true })) {
@@ -155,11 +153,13 @@ export class ImapService {
     const batchSize = 10;
     for (let i = 0; i < uids.length; i += batchSize) {
       const batch = uids.slice(i, i + batchSize);
+      // SequenceString format: "1,2,3" or "1:10"
       const uidSet = batch.join(",");
 
       for await (const msg of client.fetch(
-        { uid: true, source: uidSet },
+        uidSet,
         { uid: true, source: true, flags: true, envelope: true },
+        { uid: true },
       )) {
         try {
           if (msg.source) {
@@ -188,8 +188,9 @@ export class ImapService {
 
     let rawMsg: FetchMessageObject | null = null;
     for await (const msg of client.fetch(
-      { uid: true, source: String(uid) },
+      String(uid),
       { uid: true, source: true, flags: true },
+      { uid: true },
     )) {
       rawMsg = msg;
       break;
@@ -287,7 +288,8 @@ export class ImapService {
     try {
       await this.connect();
       const client = this.client!;
-      const capabilities = Array.from(client.capabilities ?? []);
+      const caps = client.capabilities;
+      const capabilities = caps ? Array.from(caps.keys()) : [];
       await this.disconnect();
       return { success: true, capabilities };
     } catch (err) {

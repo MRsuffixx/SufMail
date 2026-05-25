@@ -9,7 +9,7 @@
  * Run with: pnpm db:seed
  */
 
-import { PrismaClient } from "../../generated/prisma";
+import { PrismaClient } from "../../../generated/prisma";
 import bcryptjs from "bcryptjs";
 import crypto from "crypto";
 

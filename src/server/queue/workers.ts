@@ -80,9 +80,9 @@ export function createMailSendWorker(): Worker<MailSendJobData> {
 
       const smtp = createSmtpService(account);
 
-      const to = (draft.to as EmailAddress[]) ?? [];
-      const cc = (draft.cc as EmailAddress[]) ?? [];
-      const bcc = (draft.bcc as EmailAddress[]) ?? [];
+      const to = (draft.to as unknown as EmailAddress[]) ?? [];
+      const cc = (draft.cc as unknown as EmailAddress[]) ?? [];
+      const bcc = (draft.bcc as unknown as EmailAddress[]) ?? [];
 
       const sendOptions: SendOptions = {
         mailAccountId: account.id,
@@ -135,7 +135,8 @@ export function createNotificationWorker(): Worker<NotificationJobData> {
           userId,
           type,
           isRead: false,
-          payload,
+          // Cast payload to Prisma-compatible JSON input
+          payload: payload as Parameters<typeof db.notificationLog.create>[0]["data"]["payload"],
         },
       });
 
