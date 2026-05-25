@@ -1,46 +1,114 @@
-# See https://help.github.com/articles/ignoring-files/ for more about ignoring files.
+############################################
+# DEPENDENCIES (MONOREPO SAFE)
+############################################
+node_modules/
+**/node_modules/
+apps/**/node_modules/
+packages/**/node_modules/
+services/**/node_modules/
 
-# dependencies
-/node_modules
-/.pnp
+.pnp
 .pnp.js
+.pnp.cjs
+.pnp.loader.mjs
 
-# testing
-/coverage
+############################################
+# NEXT.JS
+############################################
+.next/
+out/
+build/
+dist/
 
-# database
-/prisma/db.sqlite
-/prisma/db.sqlite-journal
-db.sqlite
-
-# next.js
-/.next/
-/out/
+# Next runtime types
 next-env.d.ts
 
-# production
-/build
+############################################
+# TURBO / NX / MONOREPO TOOLS
+############################################
+.turbo/
+.nx/
+.cache/
 
-# misc
-.DS_Store
-*.pem
+############################################
+# TEST / COVERAGE
+############################################
+coverage/
+.nyc_output/
 
-# debug
+############################################
+# DATABASE / PRISMA
+############################################
+/prisma/db.sqlite
+/prisma/db.sqlite-journal
+**/db.sqlite
+**/*.db
+**/*.sqlite
+**/*.sqlite-journal
+
+############################################
+# ENV FILES (CRITICAL)
+############################################
+.env
+.env.*
+!.env.example
+!.env.sample
+
+apps/**/.env
+packages/**/.env
+services/**/.env
+
+############################################
+# LOGS
+############################################
+logs/
+*.log
 npm-debug.log*
 yarn-debug.log*
-yarn-error.log*
-.pnpm-debug.log*
+pnpm-debug.log*
+bun-debug.log*
+*.log.*
 
-# local env files
-# do not commit any .env files to git, except for the .env.example file. https://create.t3.gg/en/usage/env-variables#using-environment-variables
-.env
-.env*.local
+############################################
+# OS FILES
+############################################
+.DS_Store
+Thumbs.db
 
-# vercel
-.vercel
+############################################
+# IDE / EDITORS
+############################################
+.vscode/
+.idea/
+*.swp
+*.swo
 
-# typescript
+############################################
+# TYPESCRIPT
+############################################
 *.tsbuildinfo
 
-# idea files
-.idea
+############################################
+# BUILD OUTPUTS
+############################################
+dist/
+build/
+release/
+
+############################################
+# VERCEL / DEPLOY
+############################################
+.vercel/
+
+############################################
+# DOCKER
+############################################
+docker-compose.override.yml
+**/docker-compose.override.yml
+
+############################################
+# OPTIONAL CACHE
+############################################
+.eslintcache
+.stylelintcache
+.parcel-cache/
