@@ -60,39 +60,40 @@ export interface NotificationJobData {
 
 // ─── Queue Instances ──────────────────────────────────────────────────────────
 
-const QUEUE_OPTIONS = {
-  connection: getRedisConnection(),
+const REDIS_CONNECTION = getRedisConnection();
+
+/** mail:sync — 5 attempts, exponential 5s→10s→20s→60s→120s, keep failures */
+export const mailSyncQueue = new Queue<MailSyncJobData>("mail:sync", {
+  connection: REDIS_CONNECTION,
   defaultJobOptions: {
     removeOnComplete: { count: 100 },
-    removeOnFail: { count: 200 },
+    removeOnFail: false, // Keep for inspection / replay
+    attempts: 5,
+    backoff: { type: "exponential" as const, delay: 5_000 },
+  },
+});
+
+/** mail:send — 3 attempts, exponential 2s→4s→8s */
+export const mailSendQueue = new Queue<MailSendJobData>("mail:send", {
+  connection: REDIS_CONNECTION,
+  defaultJobOptions: {
+    removeOnComplete: { count: 50 },
+    removeOnFail: false,
     attempts: 3,
-    backoff: {
-      type: "exponential" as const,
-      delay: 5000,
-    },
+    backoff: { type: "exponential" as const, delay: 2_000 },
   },
-};
+});
 
-export const mailSyncQueue = new Queue<MailSyncJobData>(
-  "mail:sync",
-  QUEUE_OPTIONS,
-);
-
-export const mailSendQueue = new Queue<MailSendJobData>(
-  "mail:send",
-  QUEUE_OPTIONS,
-);
-
-export const notificationQueue = new Queue<NotificationJobData>(
-  "notifications",
-  {
-    ...QUEUE_OPTIONS,
-    defaultJobOptions: {
-      ...QUEUE_OPTIONS.defaultJobOptions,
-      attempts: 2,
-    },
+/** notifications — 2 attempts, fixed 5s delay */
+export const notificationQueue = new Queue<NotificationJobData>("notifications", {
+  connection: REDIS_CONNECTION,
+  defaultJobOptions: {
+    removeOnComplete: { count: 50 },
+    removeOnFail: { count: 100 },
+    attempts: 2,
+    backoff: { type: "fixed" as const, delay: 5_000 },
   },
-);
+});
 
 // ─── Queue Helpers ────────────────────────────────────────────────────────────
 

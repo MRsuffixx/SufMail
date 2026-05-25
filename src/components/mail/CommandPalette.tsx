@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { useUIStore } from "~/stores";
+import { useUIStore, useThemeStore, useMailListStore } from "~/stores";
 import { cn } from "~/lib/ui/utils";
 import type { CommandItem } from "~/types/ui";
 import {
@@ -21,7 +21,9 @@ import {
 import { openComposeWindow, openSettingsWindow, openAccountManagerWindow } from "~/components/windows/useWindow";
 
 export function CommandPalette() {
-  const { commandPaletteOpen, setCommandPaletteOpen, setThemeMode, themeStore } = useUIStore();
+  const { commandPaletteOpen, setCommandPaletteOpen } = useUIStore();
+  const { setThemeMode } = useThemeStore();
+  const { setCurrentFolder } = useMailListStore();
   const [query, setQuery] = useState("");
   const [selectedIndex, setSelectedIndex] = useState(0);
   const inputRef = useRef<HTMLInputElement>(null);
@@ -305,9 +307,4 @@ export function CommandPalette() {
       )}
     </AnimatePresence>
   );
-}
-
-// Temporary reference to setCurrentFolder - will be properly typed
-function setCurrentFolder(folder: string) {
-  // Implementation will be connected to mail store
 }

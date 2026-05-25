@@ -10,22 +10,18 @@ import { TRPCError } from "@trpc/server";
 import { createTRPCRouter, protectedProcedure } from "~/server/api/trpc";
 import { db } from "~/server/db";
 import { config } from "~/config";
+import { QueueMonitoringService } from "~/server/queue/monitoring.service";
+import { RateLimitService } from "~/server/security/rate-limit.service";
 
 // ─── Admin Guard Procedure ────────────────────────────────────────────────────
 
-/**
- * A procedure that requires the user to have the ADMIN role.
- */
 const adminProcedure = protectedProcedure.use(async ({ ctx, next }) => {
-  // Role is already embedded in the JWT token via the jwt() callback in auth/config.ts.
-  // No need to query the database \u2014 ctx.session.user.role is authoritative.
   if (ctx.session.user.role !== "ADMIN") {
     throw new TRPCError({
       code: "FORBIDDEN",
       message: "Admin access required",
     });
   }
-
   return next({ ctx });
 });
 
@@ -60,7 +56,7 @@ export const adminRouter = createTRPCRouter({
       totalMessages,
       totalAttachments,
       recentUsers,
-      appVersion: "1.0.0",
+      appVersion: "2.0.0",
       maintenanceMode: config.advanced.maintenanceMode,
       uptime: process.uptime(),
     };
@@ -142,11 +138,7 @@ export const adminRouter = createTRPCRouter({
           message: "Cannot change your own role",
         });
       }
-
-      const user = await db.user.findUnique({
-        where: { id: input.userId },
-      });
-
+      const user = await db.user.findUnique({ where: { id: input.userId } });
       if (!user)
         throw new TRPCError({ code: "NOT_FOUND", message: "User not found" });
 
@@ -169,7 +161,6 @@ export const adminRouter = createTRPCRouter({
           message: "Cannot suspend yourself",
         });
       }
-
       await db.session.deleteMany({ where: { userId: input.userId } });
       return { suspended: true };
     }),
@@ -186,46 +177,68 @@ export const adminRouter = createTRPCRouter({
           message: "Cannot delete yourself",
         });
       }
-
       await db.user.delete({ where: { id: input.userId } });
       return { deleted: true };
     }),
 
   /**
    * Toggle maintenance mode.
-   * Note: This updates in-memory config only; for persistence, update .env.
    */
   toggleMaintenance: adminProcedure
     .input(z.object({ enabled: z.boolean() }))
     .mutation(async ({ input }) => {
-      // Modify the runtime config object
       config.advanced.maintenanceMode = input.enabled;
       return { maintenanceMode: config.advanced.maintenanceMode };
     }),
 
   /**
-   * Get queue statistics from BullMQ.
+   * Get detailed queue statistics from all BullMQ queues.
    */
   getQueueStats: adminProcedure.query(async () => {
-    const { mailSyncQueue, mailSendQueue, notificationQueue } = await import(
-      "~/server/queue/client"
-    );
-
-    const [syncStats, sendStats, notifStats] = await Promise.all([
-      mailSyncQueue.getJobCounts(),
-      mailSendQueue.getJobCounts(),
-      notificationQueue.getJobCounts(),
-    ]);
-
-    return {
-      mailSync: syncStats,
-      mailSend: sendStats,
-      notifications: notifStats,
-    };
+    return QueueMonitoringService.getQueueStats();
   }),
 
   /**
-   * Trigger a full sync for all mail accounts.
+   * List failed jobs across all queues.
+   */
+  getFailedJobs: adminProcedure
+    .input(z.object({ limit: z.number().min(1).max(100).default(20) }))
+    .query(async ({ input }) => {
+      return QueueMonitoringService.getFailedJobs(input.limit);
+    }),
+
+  /**
+   * Retry a failed job by ID.
+   */
+  retryJob: adminProcedure
+    .input(
+      z.object({
+        queue: z.enum(["mail:sync", "mail:send", "notifications"]),
+        jobId: z.string(),
+      }),
+    )
+    .mutation(async ({ input }) => {
+      await QueueMonitoringService.retryJob(input.queue, input.jobId);
+      return { retried: true };
+    }),
+
+  /**
+   * Permanently discard a failed job.
+   */
+  discardJob: adminProcedure
+    .input(
+      z.object({
+        queue: z.enum(["mail:sync", "mail:send", "notifications"]),
+        jobId: z.string(),
+      }),
+    )
+    .mutation(async ({ input }) => {
+      await QueueMonitoringService.discardJob(input.queue, input.jobId);
+      return { discarded: true };
+    }),
+
+  /**
+   * Trigger a full sync for all active mail accounts.
    */
   syncAllAccounts: adminProcedure.mutation(async () => {
     const { enqueueSyncJob } = await import("~/server/queue/client");
@@ -244,7 +257,60 @@ export const adminRouter = createTRPCRouter({
       });
       queued++;
     }
-
     return { queued };
   }),
+
+  /**
+   * Ban an IP address.
+   */
+  banIp: adminProcedure
+    .input(
+      z.object({
+        ip: z.string().ip(),
+        durationSeconds: z.number().min(60).max(86400 * 30).default(3600),
+      }),
+    )
+    .mutation(async ({ input }) => {
+      await RateLimitService.banIp(input.ip, input.durationSeconds);
+      return { banned: true, ip: input.ip };
+    }),
+
+  /**
+   * Unban an IP address.
+   */
+  unbanIp: adminProcedure
+    .input(z.object({ ip: z.string().ip() }))
+    .mutation(async ({ input }) => {
+      await RateLimitService.unbanIp(input.ip);
+      return { unbanned: true, ip: input.ip };
+    }),
+
+  /**
+   * List disabled mail accounts (circuit breaker triggered).
+   */
+  getDisabledAccounts: adminProcedure.query(async () => {
+    return db.mailAccount.findMany({
+      where: { isActive: false },
+      select: {
+        id: true,
+        email: true,
+        consecutiveSyncFailures: true,
+        syncedAt: true,
+        user: { select: { email: true } },
+      },
+    });
+  }),
+
+  /**
+   * Re-enable a disabled account and reset its failure counter.
+   */
+  reEnableAccount: adminProcedure
+    .input(z.object({ accountId: z.string().cuid() }))
+    .mutation(async ({ input }) => {
+      await db.mailAccount.update({
+        where: { id: input.accountId },
+        data: { isActive: true, consecutiveSyncFailures: 0 },
+      });
+      return { enabled: true };
+    }),
 });
