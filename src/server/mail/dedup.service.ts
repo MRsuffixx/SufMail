@@ -12,6 +12,7 @@ import type { ParsedEmail } from "~/types/mail";
 export class DeduplicationService {
   /**
    * Computes a SHA-256 content hash: fromEmail + ISO date + bodyText[0:500].
+   * Public so it can be called directly for storage during upsert.
    */
   static computeMessageHash(parsed: ParsedEmail): string {
     const dateStr = parsed.date?.toISOString() ?? "";

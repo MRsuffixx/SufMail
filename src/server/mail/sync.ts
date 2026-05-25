@@ -246,10 +246,8 @@ export class SyncService {
       bodyText: parsed.bodyText ?? undefined,
     });
 
-    // Message hash for deduplication
-    const messageHash = DeduplicationService.getHashForStorage
-      ? DeduplicationService["computeMessageHash"](parsed)
-      : undefined;
+    // Message hash for deduplication storage
+    const messageHash = DeduplicationService.computeMessageHash(parsed);
 
     // Determine label type from mailbox
     const mailboxName = Object.keys(IMAP_MAILBOX_LABEL_MAP).find((key) =>

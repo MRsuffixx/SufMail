@@ -102,7 +102,9 @@ export class QueueMonitoringService {
       notificationQueue.getFailed(0, limit - 1),
     ]);
 
-    const toResult = (queue: string, jobs: typeof syncFailed) =>
+    type AnyJob = { id?: string; name: string; failedReason?: string; attemptsMade: number; timestamp: number; data: unknown };
+
+    const toResult = (queue: string, jobs: AnyJob[]) =>
       jobs.map((j) => ({
         queue,
         jobId: j.id ?? "",
@@ -110,13 +112,13 @@ export class QueueMonitoringService {
         failedReason: j.failedReason ?? "unknown",
         attemptsMade: j.attemptsMade,
         timestamp: j.timestamp,
-        data: j.data as unknown,
+        data: j.data,
       }));
 
     return [
-      ...toResult("mail:sync", syncFailed),
-      ...toResult("mail:send", sendFailed),
-      ...toResult("notifications", notifyFailed),
+      ...toResult("mail:sync", syncFailed as AnyJob[]),
+      ...toResult("mail:send", sendFailed as AnyJob[]),
+      ...toResult("notifications", notifyFailed as AnyJob[]),
     ].slice(0, limit);
   }
 
