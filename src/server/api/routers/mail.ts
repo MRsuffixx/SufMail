@@ -327,12 +327,24 @@ export const mailRouter = createTRPCRouter({
       if (!original)
         throw new TRPCError({ code: "NOT_FOUND", message: "Original message not found" });
 
+      // When replyAll is true, include the original CC recipients
+      const originalCc = input.replyAll
+        ? (original.ccAddresses as Array<{ email: string; name?: string }> ?? [])
+        : [];
+
+      // Merge caller-provided CC with the original CC (deduplicate by email)
+      const mergedCcMap = new Map<string, { email: string; name?: string }>();
+      for (const addr of [...originalCc, ...input.cc]) {
+        mergedCcMap.set(addr.email.toLowerCase(), addr);
+      }
+      const mergedCc = Array.from(mergedCcMap.values());
+
       const draft = await db.draft.create({
         data: {
           userId: session.user.id,
           mailAccountId: input.mailAccountId,
           to: input.to,
-          cc: input.cc,
+          cc: mergedCc,
           subject: /^re:/i.test(input.subject)
             ? input.subject
             : `Re: ${input.subject}`,
@@ -431,6 +443,17 @@ export const mailRouter = createTRPCRouter({
       if (messages.length === 0) return { updated: 0 };
 
       const messageIds = messages.map((m) => m.id);
+
+      // If removeOtherSystemLabels is true, first delete all system label associations
+      // on these messages so the move is exclusive (like a folder move).
+      if (input.removeOtherSystemLabels) {
+        await db.messageLabel.deleteMany({
+          where: {
+            messageId: { in: messageIds },
+            label: { isSystem: true },
+          },
+        });
+      }
 
       await db.messageLabel.createMany({
         data: messageIds.map((msgId) => ({

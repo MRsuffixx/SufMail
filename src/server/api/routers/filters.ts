@@ -329,8 +329,11 @@ function matchesCondition(
     case "lessThan":
       return fieldNum < numValue;
     case "is":
+      // For strings: compare lowercased; for numbers/booleans: direct comparison
+      if (typeof fieldValue === "string") return fieldStr === strValue;
       return fieldValue === value;
     case "isNot":
+      if (typeof fieldValue === "string") return fieldStr !== strValue;
       return fieldValue !== value;
     default:
       return false;

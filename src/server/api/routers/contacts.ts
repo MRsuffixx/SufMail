@@ -308,7 +308,8 @@ function parseVcf(vcf: string): VcfContact[] {
       }
     }
 
-    if (contact.email) {
+    // Only push if email is present and is a valid-looking email address
+    if (contact.email && contact.email.includes("@")) {
       contacts.push(contact as VcfContact);
     }
   }
