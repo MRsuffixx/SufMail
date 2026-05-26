@@ -44,9 +44,8 @@ export async function schedulePeriodicSync(): Promise<void> {
     if (job.name === "sync") {
       try {
         await mailSyncQueue.removeRepeatableByKey(job.key);
-      } catch {
+} catch {
         // Job may already be removed by concurrent call
-.
       }
     }
   }

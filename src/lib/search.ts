@@ -83,7 +83,7 @@ async function searchWithPostgres(
       @@ plainto_tsquery('english', $2)
     )`,
   ];
-  const params: unknown[] = [userId, query];
+  const params: unknown[] = [userId, sanitizedQuery];
   let paramIndex = 3;
 
   if (mailAccountId) {
@@ -122,7 +122,7 @@ async function searchWithPostgres(
      WHERE ${whereClause}`,
     ...allParams,
   );
-  const total = Number(countResult[0]?.count ?? 0);
+  const total = Number(countResult[0]?.count ?? 0n);
 
   // Fetch messages
   const rawMessages = await db.$queryRawUnsafe<
@@ -200,7 +200,8 @@ async function searchWithMeilisearch(
     );
   }
 
-  const url = `${MEILISEARCH_HOST}/indexes/messages/search`;
+const url = `${MEILISEARCH_HOST}/indexes/messages/search`;
+  const safeUserId = userId.replace(/[^a-zA-Z0-9]/g, "");
   const response = await fetch(url, {
     method: "POST",
     headers: {
@@ -209,7 +210,7 @@ async function searchWithMeilisearch(
     },
     body: JSON.stringify({
       q: query,
-      filter: `userId = "${userId.replace(/"/g, '\\"')}"`,
+      filter: `userId = "${safeUserId}"`,
       limit: options.limit ?? 50,
       offset: options.offset ?? 0,
     }),

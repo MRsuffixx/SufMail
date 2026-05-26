@@ -321,7 +321,7 @@ export class SyncService {
         messageHash: messageHash ?? null,
         uid: parsed.uid ?? null,
         imapMailbox: mailboxPath,
-        size: parsed.bodyHtml?.length ?? parsed.bodyText?.length ?? 0,
+        size: Buffer.byteLength(parsed.bodyHtml ?? "", "utf8") || Buffer.byteLength(parsed.bodyText ?? "", "utf8") || 0,
       },
       update: {
         isRead: isDeleted || isSent,

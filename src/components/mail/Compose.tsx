@@ -28,6 +28,7 @@ import { generateId } from "~/lib/ui/utils";
 
 interface ComposeProps {
   draftId?: string;
+  mailAccountId?: string;
   replyTo?: {
     to: EmailRecipient[];
     cc?: EmailRecipient[];
@@ -42,7 +43,7 @@ interface ComposeProps {
   onClose?: () => void;
 }
 
-export function Compose({ draftId, replyTo, forwardFrom, onClose }: ComposeProps) {
+export function Compose({ draftId, mailAccountId, replyTo, forwardFrom, onClose }: ComposeProps) {
   const [to, setTo] = useState<EmailRecipient[]>(replyTo?.to ?? []);
   const [cc, setCc] = useState<EmailRecipient[]>(replyTo?.cc ?? []);
   const [bcc, setBcc] = useState<EmailRecipient[]>([]);
@@ -158,7 +159,7 @@ export function Compose({ draftId, replyTo, forwardFrom, onClose }: ComposeProps
     setIsSending(true);
 
     sendMessageMutation.mutate({
-      mailAccountId: "placeholder",
+      mailAccountId: mailAccountId ?? "",
       to: to.map((r) => ({ email: r.email, name: r.name })),
       cc: cc.length > 0 ? cc.map((r) => ({ email: r.email, name: r.name })) : undefined,
       bcc: bcc.length > 0 ? bcc.map((r) => ({ email: r.email, name: r.name })) : undefined,
@@ -166,7 +167,7 @@ export function Compose({ draftId, replyTo, forwardFrom, onClose }: ComposeProps
       bodyHtml: editor?.getHTML() ?? "",
       scheduledAt: isScheduled && scheduledDate ? scheduledDate : undefined,
     });
-  }, [to, cc, bcc, subject, editor, isScheduled, scheduledDate, sendMessageMutation, addToast]);
+  }, [to, cc, bcc, subject, editor, isScheduled, scheduledDate, sendMessageMutation, addToast, mailAccountId]);
 
   const handleClose = useCallback(() => {
     onClose?.();

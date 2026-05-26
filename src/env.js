@@ -13,7 +13,7 @@ export const env = createEnv({
       .default("development"),
 
     // ── Database ──────────────────────────────────────────────────────────
-    DATABASE_URL: z.string().url(),
+    DATABASE_URL: z.string().min(1),
 
     // ── Auth ──────────────────────────────────────────────────────────────
     AUTH_SECRET:

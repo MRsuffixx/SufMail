@@ -287,6 +287,7 @@ export const accountsRouter = createTRPCRouter({
         /** Or provide credentials directly to test before saving */
         email: z.string().email().optional(),
         imapPassword: z.string().optional(),
+        smtpPassword: z.string().optional(),
         imapHost: z.string().optional(),
         imapPort: z.number().int().optional(),
         imapTls: z.boolean().optional(),
@@ -315,7 +316,7 @@ export const accountsRouter = createTRPCRouter({
       // Create a temporary account object for testing
       const tempCreds = encryptObject<StoredCredentials>({
         imapPassword: input.imapPassword,
-        smtpPassword: input.imapPassword, // placeholder
+        smtpPassword: input.smtpPassword ?? input.imapPassword,
       });
 
       const tempAccount = {

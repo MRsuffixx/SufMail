@@ -75,26 +75,34 @@ export class RateLimitService {
     const ipKey = `bf:ip:${ip}`;
     const lockKey = `bf:lock:${ip}`;
 
-    // Check if already locked
-    const locked = await redis.get(lockKey);
-    if (locked) {
-      const ttl = await redis.ttl(lockKey);
+    const luaScript = `
+      local lock = redis.call('GET', KEYS[1])
+      if lock then
+        return {1, redis.call('TTL', KEYS[1])}
+      end
+      local attempts = redis.call('INCR', KEYS[2])
+      redis.call('EXPIRE', KEYS[2], ARGV[1])
+      return {0, attempts}
+    `;
+
+    const result = await redis.eval(
+      luaScript,
+      2,
+      lockKey,
+      ipKey,
+      bf.lockoutDurationSeconds,
+    ) as [number, number];
+
+    if (result[0] === 1) {
       return {
         blocked: true,
         attempts: bf.maxAttempts,
-        lockoutExpiresAt: new Date(Date.now() + ttl * 1000),
-        backoffMs: ttl * 1000,
+        lockoutExpiresAt: new Date(Date.now() + result[1] * 1000),
+        backoffMs: result[1] * 1000,
       };
     }
 
-    const pipeline = redis.pipeline();
-    pipeline.incr(ipKey);
-    pipeline.expire(ipKey, bf.lockoutDurationSeconds);
-    const results = await pipeline.exec();
-    if (results?.[0]?.[0]) {
-      throw results[0][0];
-    }
-    const attempts = (results?.[0]?.[1] as number) ?? 1;
+    const attempts = result[1];
 
     if (userId) {
       const userKey = `bf:user:${userId}`;
@@ -103,11 +111,10 @@ export class RateLimitService {
     }
 
     if (attempts >= bf.maxAttempts) {
-      // Apply exponential backoff: lockout duration * multiplier^(attempts - maxAttempts)
       const extra = attempts - bf.maxAttempts;
       const multiplied = Math.min(
         bf.lockoutDurationSeconds * Math.pow(bf.backoffMultiplier, extra),
-        86400, // cap at 24 hours
+        86400,
       );
       await redis.set(lockKey, "1", "EX", Math.ceil(multiplied));
       return {

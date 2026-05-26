@@ -26,16 +26,33 @@ let _s3Client: S3Client | null = null;
 function getS3Client(): S3Client {
   if (_s3Client) return _s3Client;
 
-  const clientConfig = {
+  const accessKey = env.STORAGE_ACCESS_KEY ?? "";
+  const secretKey = env.STORAGE_SECRET_KEY ?? "";
+  const provider = config.storage.provider;
+
+  if ((provider === "s3" || provider === "r2") && (!accessKey || !secretKey)) {
+    throw new Error(
+      `Storage provider '${provider}' is configured but STORAGE_ACCESS_KEY or STORAGE_SECRET_KEY is missing`,
+    );
+  }
+
+  const clientConfig: {
+    region: string;
+    credentials: { accessKeyId: string; secretAccessKey: string };
+    endpoint?: string;
+    forcePathStyle?: boolean;
+  } = {
     region: env.STORAGE_REGION ?? config.storage.region ?? "auto",
     credentials: {
-      accessKeyId: env.STORAGE_ACCESS_KEY ?? "",
-      secretAccessKey: env.STORAGE_SECRET_KEY ?? "",
+      accessKeyId: accessKey || "anonymous",
+      secretAccessKey: secretKey || "anonymous",
     },
-    ...(env.STORAGE_ENDPOINT
-      ? { endpoint: env.STORAGE_ENDPOINT, forcePathStyle: true }
-      : {}),
   };
+
+  if (env.STORAGE_ENDPOINT) {
+    clientConfig.endpoint = env.STORAGE_ENDPOINT;
+    clientConfig.forcePathStyle = true;
+  }
 
   _s3Client = new S3Client(clientConfig);
   return _s3Client;
@@ -126,7 +143,36 @@ export async function getSignedUrl(
  *
  * @param key - Storage key
  */
-export async function deleteFile(key: string): Promise<void> {
+export async function getFile(key: string): Promise<Buffer | null> {
+  const provider = config.storage.provider;
+
+  if (provider === "s3" || provider === "r2") {
+    const client = getS3Client();
+    try {
+      const response = await client.send(
+        new GetObjectCommand({
+          Bucket: getBucket(),
+          Key: key,
+        }),
+      );
+      const chunks: Uint8Array[] = [];
+      for await (const chunk of response.Body as AsyncIterable<Uint8Array>) {
+        chunks.push(chunk);
+      }
+      return Buffer.concat(chunks);
+    } catch {
+      return null;
+    }
+  }
+
+  const filePath = join(LOCAL_UPLOADS_DIR, key);
+  if (!existsSync(filePath)) return null;
+  const { readFile } = await import("fs/promises");
+  return readFile(filePath);
+}
+
+/**
+ * Deletes a file from storage.
   const provider = config.storage.provider;
 
   if (provider === "s3" || provider === "r2") {

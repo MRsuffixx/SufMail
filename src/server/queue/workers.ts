@@ -150,10 +150,10 @@ function getSystemTransporter(): nodemailer.Transporter | null {
  */
 function escapeHtml(str: string): string {
   return String(str)
-    .replace(/&/g, "&")
-    .replace(/</g, "<")
-    .replace(/>/g, ">")
-    .replace(/"/g, """)
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
     .replace(/'/g, "&#039;");
 }
 
@@ -212,7 +212,7 @@ function buildNotificationEmail(
           <hr/>
           <p style="color:#888;font-size:12px">
             You are receiving this digest because email digest is enabled in ${safeAppName}.
-          </ttml>`,
+          </p>`,
         text: `${safeAppName} digest: ${count} new message${count !== 1 ? "s" : ""}.`,
       };
     }
