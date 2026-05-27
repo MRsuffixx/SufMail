@@ -51,7 +51,8 @@ export function AppLayout({ labels = [] }: AppLayoutProps) {
     (message: MessageListItem) => {
       setSelectedMessage(message.id);
       setActivePane("viewer");
-      setSelectedMessageLocal({
+      // Memoize the FullMessage object to prevent unnecessary re-renders
+      const fullMessage: FullMessage = {
         id: message.id,
         threadId: message.threadId,
         messageId: message.messageId,
@@ -77,7 +78,8 @@ export function AppLayout({ labels = [] }: AppLayoutProps) {
         size: 0,
         mailAccountId: "",
         rawPath: null,
-      });
+      };
+      setSelectedMessageLocal(fullMessage);
     },
     [setSelectedMessage, setActivePane]
   );
