@@ -13,6 +13,24 @@ import { searchMessages } from "~/lib/search";
 import { getSignedUrl } from "~/lib/storage";
 import { enqueueSyncJob, enqueueSendJob } from "~/server/queue/client";
 import type { MessageListItem, FullMessage } from "~/types/mail";
+import DOMPurify from "dompurify";
+
+// Sanitize HTML to prevent XSS attacks
+function sanitizeHtml(html: string): string {
+  return DOMPurify.sanitize(html, {
+    ALLOWED_TAGS: [
+      "p", "br", "strong", "b", "em", "i", "u", "s", "strike",
+      "h1", "h2", "h3", "h4", "h5", "h6",
+      "ul", "ol", "li",
+      "blockquote", "pre", "code",
+      "a", "img",
+      "table", "thead", "tbody", "tr", "th", "td",
+      "span", "div",
+    ],
+    ALLOWED_ATTR: ["href", "src", "alt", "class", "style", "target"],
+    ALLOW_DATA_ATTR: false,
+  });
+}
 
 // ─── Shared Input Schemas ─────────────────────────────────────────────────────
 
@@ -274,7 +292,7 @@ export const mailRouter = createTRPCRouter({
           cc: input.cc,
           bcc: input.bcc,
           subject: input.subject,
-          bodyHtml: input.bodyHtml,
+          bodyHtml: sanitizeHtml(input.bodyHtml),
           inReplyTo: input.inReplyTo ?? null,
           references: input.references ?? null,
           scheduledAt: input.scheduledAt ? new Date(input.scheduledAt) : null,
@@ -355,7 +373,7 @@ export const mailRouter = createTRPCRouter({
           subject: /^re:/i.test(input.subject)
             ? input.subject
             : `Re: ${input.subject}`,
-          bodyHtml: input.bodyHtml,
+          bodyHtml: sanitizeHtml(input.bodyHtml),
           inReplyTo: original.messageId,
           references: original.messageId,
         },
@@ -411,7 +429,7 @@ export const mailRouter = createTRPCRouter({
           subject: original.subject?.startsWith("Fwd:")
             ? (original.subject ?? "")
             : `Fwd: ${original.subject ?? ""}`,
-          bodyHtml: input.bodyHtml,
+          bodyHtml: sanitizeHtml(input.bodyHtml),
         },
       });
 
