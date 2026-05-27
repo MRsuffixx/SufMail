@@ -2,10 +2,19 @@
  * MailForge — Next.js Middleware
  *
  * Protects /app/* routes, requiring authentication.
- * Unauthenticated users are redirected to /login.
+ * Installs guard: redirects to /install if not yet installed.
  */
 
+import { existsSync } from "node:fs";
+import { join } from "node:path";
+
 import { auth } from "~/server/auth";
+
+function isInstalled(): boolean {
+  if (process.env.INSTALL_COMPLETE === "true") return true;
+  const lockPath = join(process.cwd(), "install.lock");
+  return existsSync(lockPath);
+}
 
 export default auth((req) => {
   const { nextUrl } = req;
@@ -18,6 +27,23 @@ export default auth((req) => {
     nextUrl.pathname.startsWith("/register") ||
     nextUrl.pathname.startsWith("/verify-request") ||
     nextUrl.pathname.startsWith("/api/auth");
+  const isInstallRoute = nextUrl.pathname.startsWith("/install");
+  const isHealthRoute = nextUrl.pathname === "/api/health";
+  const isStatusRoute = nextUrl.pathname === "/status";
+
+  if (!isInstalled()) {
+    if (!isInstallRoute && !isHealthRoute && !isStatusRoute) {
+      const installUrl = new URL("/install", nextUrl.origin);
+      return Response.redirect(installUrl);
+    }
+    if (isInstallRoute && nextUrl.pathname === "/install") {
+      return undefined;
+    }
+  }
+
+  if (isInstalled() && isInstallRoute && nextUrl.pathname === "/install") {
+    return Response.redirect(new URL("/", nextUrl.origin));
+  }
 
   // Protect app routes
   if (isAppRoute && !isLoggedIn) {
@@ -36,13 +62,6 @@ export default auth((req) => {
 
 export const config = {
   matcher: [
-    /*
-     * Match all request paths except:
-     * - _next/static (static files)
-     * - _next/image (image optimization)
-     * - favicon.ico
-     * - public files (svg, png, jpg, etc.)
-     */
     "/((?!_next/static|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp|ico|mp3|woff|woff2)$).*)",
   ],
 };
