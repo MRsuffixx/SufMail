@@ -10,10 +10,18 @@ import { join } from "node:path";
 
 import { auth } from "~/server/auth";
 
+// Cache installation status to avoid repeated filesystem access
+let isInstalledCache: boolean | null = null;
+
 function isInstalled(): boolean {
-  if (process.env.INSTALL_COMPLETE === "true") return true;
+  if (isInstalledCache !== null) return isInstalledCache;
+  if (process.env.INSTALL_COMPLETE === "true") {
+    isInstalledCache = true;
+    return true;
+  }
   const lockPath = join(process.cwd(), "install.lock");
-  return existsSync(lockPath);
+  isInstalledCache = existsSync(lockPath);
+  return isInstalledCache;
 }
 
 export default auth((req) => {
@@ -48,7 +56,11 @@ export default auth((req) => {
   // Protect app routes
   if (isAppRoute && !isLoggedIn) {
     const loginUrl = new URL("/login", nextUrl.origin);
-    loginUrl.searchParams.set("callbackUrl", nextUrl.pathname);
+    // Validate callbackUrl is a safe relative path to prevent open redirect
+    const callback = nextUrl.pathname;
+    if (callback.startsWith("/") && !callback.startsWith("//")) {
+      loginUrl.searchParams.set("callbackUrl", callback);
+    }
     return Response.redirect(loginUrl);
   }
 

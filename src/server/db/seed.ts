@@ -18,12 +18,12 @@ const db = new PrismaClient();
 async function main() {
   console.info("🌱 Starting MailForge seed...\n");
 
-  // ── Check/generate ENCRYPTION_KEY hint ──────────────────────────────────
+  // ── Check ENCRYPTION_KEY ─────────────────────────────────────────────────
   if (!process.env.ENCRYPTION_KEY) {
-    const generated = crypto.randomBytes(32).toString("hex");
-    console.info("⚠️  ENCRYPTION_KEY is not set.");
-    console.info(`   Add this to your .env file:`);
-    console.info(`   ENCRYPTION_KEY="${generated}"\n`);
+    console.error("❌ ENCRYPTION_KEY environment variable is required.");
+    console.error("   Run: openssl rand -hex 32");
+    console.error("   Then add it to your .env file as ENCRYPTION_KEY=<value>");
+    throw new Error("ENCRYPTION_KEY environment variable is required for seeding");
   }
 
   // ── Create Admin User ────────────────────────────────────────────────────

@@ -14,6 +14,7 @@ import { SyncService } from "~/server/mail/sync";
 import { createSmtpService } from "~/server/mail/smtp";
 import { config } from "~/config";
 import { env } from "~/env";
+import { syncLogger } from "~/lib/logger";
 import {
   getRedisConnection,
   type MailSyncJobData,
@@ -29,19 +30,20 @@ export function createMailSyncWorker(): Worker<MailSyncJobData> {
     "mail:sync",
     async (job) => {
       const { mailAccountId } = job.data;
-      console.info(`[Worker:sync] Starting sync for account ${mailAccountId}`);
+      syncLogger.info({ mailAccountId, jobId: job.id }, "[Worker:sync] Starting sync");
 
       const result = await SyncService.syncAccount(mailAccountId);
 
       if (result.errors.length > 0) {
-        console.warn(
-          `[Worker:sync] Sync completed with ${result.errors.length} errors:`,
-          result.errors,
+        syncLogger.warn(
+          { mailAccountId, errorCount: result.errors.length, errors: result.errors },
+          "[Worker:sync] Sync completed with errors",
         );
       }
 
-      console.info(
-        `[Worker:sync] Sync complete: +${result.messagesAdded} new, ${result.messagesUpdated} updated`,
+      syncLogger.info(
+        { mailAccountId, messagesAdded: result.messagesAdded, messagesUpdated: result.messagesUpdated },
+        "[Worker:sync] Sync complete",
       );
 
       return result;
@@ -57,7 +59,7 @@ export function createMailSyncWorker(): Worker<MailSyncJobData> {
   );
 
   worker.on("failed", (job, err) => {
-    console.error(`[Worker:sync] Job ${job?.id ?? "unknown"} failed:`, err);
+    syncLogger.error({ jobId: job?.id, err }, "[Worker:sync] Job failed");
   });
 
   return worker;
@@ -70,7 +72,7 @@ export function createMailSendWorker(): Worker<MailSendJobData> {
     "mail:send",
     async (job) => {
       const { draftId, mailAccountId } = job.data;
-      console.info(`[Worker:send] Sending draft ${draftId}`);
+      syncLogger.info({ draftId, jobId: job.id }, "[Worker:send] Sending draft");
 
       const [draft, account] = await Promise.all([
         db.draft.findUnique({ where: { id: draftId } }),
@@ -97,18 +99,21 @@ export function createMailSendWorker(): Worker<MailSendJobData> {
         bcc,
         subject: draft.subject ?? "(no subject)",
         bodyHtml: draft.bodyHtml ?? "",
+        bodyText: draft.bodyText ?? undefined,
         inReplyTo: draft.inReplyTo ?? undefined,
         references: draft.references ?? undefined,
       };
 
       const info = await smtp.sendEmail(sendOptions);
-      console.info(`[Worker:send] Message sent, ID: ${String(info.messageId)}`);
+      syncLogger.info({ draftId, messageId: info.messageId }, "[Worker:send] Message sent");
 
-      // Delete the draft after successful send
+      // Delete the draft after successful send - retry on failure
       try {
         await db.draft.delete({ where: { id: draftId } });
       } catch (deleteErr) {
-        console.error(`[Worker:send] Failed to delete draft ${draftId}:`, deleteErr);
+        syncLogger.error({ draftId, err: deleteErr }, "[Worker:send] Failed to delete draft");
+        // Re-throw to trigger BullMQ retry mechanism
+        throw deleteErr;
       }
 
       return { messageId: info.messageId };
@@ -120,7 +125,7 @@ export function createMailSendWorker(): Worker<MailSendJobData> {
   );
 
   worker.on("failed", (job, err) => {
-    console.error(`[Worker:send] Job ${job?.id ?? "unknown"} failed:`, err);
+    syncLogger.error({ jobId: job?.id, err }, "[Worker:send] Job failed");
   });
 
   return worker;
@@ -231,9 +236,7 @@ export function createNotificationWorker(): Worker<NotificationJobData> {
     "notifications",
     async (job) => {
       const { userId, type, payload } = job.data;
-      console.info(
-        `[Worker:notify] Processing ${type} notification for user ${userId}`,
-      );
+      syncLogger.info({ userId, type, jobId: job.id }, "[Worker:notify] Processing notification");
 
       // 1. Always persist to the notification log for in-app display.
       await db.notificationLog.create({
@@ -258,9 +261,7 @@ export function createNotificationWorker(): Worker<NotificationJobData> {
       });
 
       if (!user?.email) {
-        console.warn(
-          `[Worker:notify] No email for user ${userId}; skipping email delivery`,
-        );
+        syncLogger.warn({ userId }, "[Worker:notify] No email for user; skipping email delivery");
         return { logged: true, emailed: false };
       }
 
@@ -294,20 +295,13 @@ export function createNotificationWorker(): Worker<NotificationJobData> {
               html,
               text,
             });
-            console.info(
-              `[Worker:notify] Email delivered to ${user.email} (type=${type})`,
-            );
+            syncLogger.info({ userId, userEmail: user.email, type }, "[Worker:notify] Email delivered");
           } catch (err) {
             // Non-fatal: log but don't fail the job — the DB entry is already created.
-            console.error(
-              `[Worker:notify] Failed to send email to ${user.email}:`,
-              err,
-            );
+            syncLogger.error({ userId, userEmail: user.email, err }, "[Worker:notify] Failed to send email");
           }
         } else {
-          console.warn(
-            "[Worker:notify] EMAIL_SERVER_HOST not configured; skipping email delivery",
-          );
+          syncLogger.warn("[Worker:notify] EMAIL_SERVER_HOST not configured; skipping email delivery");
         }
       }
 
@@ -342,7 +336,7 @@ export function createNotificationWorker(): Worker<NotificationJobData> {
   );
 
   worker.on("failed", (job, err) => {
-    console.error(`[Worker:notify] Job ${job?.id ?? "unknown"} failed:`, err);
+    syncLogger.error({ jobId: job?.id, err }, "[Worker:notify] Job failed");
   });
 
   return worker;

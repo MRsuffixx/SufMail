@@ -327,6 +327,13 @@ export const mailRouter = createTRPCRouter({
       if (!original)
         throw new TRPCError({ code: "NOT_FOUND", message: "Original message not found" });
 
+      // Verify the caller-provided mailAccountId belongs to this user
+      const account = await db.mailAccount.findFirst({
+        where: { id: input.mailAccountId, userId: session.user.id },
+      });
+      if (!account)
+        throw new TRPCError({ code: "NOT_FOUND", message: "Mail account not found" });
+
       // When replyAll is true, include the original CC recipients
       const originalCc = input.replyAll
         ? (original.ccAddresses as Array<{ email: string; name?: string }> ?? [])
@@ -388,6 +395,13 @@ export const mailRouter = createTRPCRouter({
 
       if (!original)
         throw new TRPCError({ code: "NOT_FOUND", message: "Original message not found" });
+
+      // Verify the caller-provided mailAccountId belongs to this user
+      const account = await db.mailAccount.findFirst({
+        where: { id: input.mailAccountId, userId: session.user.id },
+      });
+      if (!account)
+        throw new TRPCError({ code: "NOT_FOUND", message: "Mail account not found" });
 
       const draft = await db.draft.create({
         data: {

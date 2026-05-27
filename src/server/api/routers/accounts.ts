@@ -188,7 +188,7 @@ export const accountsRouter = createTRPCRouter({
       }
 
       const updated = await db.mailAccount.update({
-        where: { id: input.id },
+        where: { id: input.id, userId: session.user.id },
         data: {
           ...(input.displayName !== undefined ? { displayName: input.displayName } : {}),
           ...(credentialsUpdate ? { credentials: credentialsUpdate } : {}),

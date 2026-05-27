@@ -173,6 +173,10 @@ export async function getFile(key: string): Promise<Buffer | null> {
 
 /**
  * Deletes a file from storage.
+ *
+ * @param key - Storage key
+ */
+export async function deleteFile(key: string): Promise<void> {
   const provider = config.storage.provider;
 
   if (provider === "s3" || provider === "r2") {

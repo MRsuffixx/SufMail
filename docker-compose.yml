@@ -26,13 +26,15 @@ services:
     volumes:
       - redis_data:/data
     healthcheck:
-      test: ["CMD-SHELL", "redis-cli -a ${REDIS_PASSWORD} ping"]
+      test: ["CMD-SHELL", "redis-cli ping"]
       interval: 5s
       timeout: 5s
       retries: 10
     restart: unless-stopped
     networks:
       - mailforge
+    environment:
+      REDISCLI_AUTH: ${REDIS_PASSWORD}
 
   app:
     build:
@@ -54,7 +56,7 @@ services:
     networks:
       - mailforge
     healthcheck:
-      test: ["CMD-SHELL", "curl -f http://localhost:3000/api/health || exit 1"]
+      test: ["CMD-SHELL", "sh -c 'kill -0 $(cat /app/server.pid) 2>/dev/null || exit 1'"]
       interval: 10s
       timeout: 5s
       retries: 5
@@ -76,6 +78,12 @@ services:
     restart: unless-stopped
     networks:
       - mailforge
+    healthcheck:
+      test: ["CMD-SHELL", "sh -c 'kill -0 $(cat /app/server.pid 2>/dev/null) 2>/dev/null || exit 1'"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
 
   nginx:
     image: nginx:1.25-alpine

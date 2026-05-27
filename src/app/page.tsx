@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { signOut } from "next-auth/react";
 import { auth } from "~/server/auth";
 
 export default async function Home() {
@@ -29,12 +30,19 @@ export default async function Home() {
                 >
                   Go to Inbox →
                 </Link>
-                <Link
-                  href="/api/auth/signout"
-                  className="rounded-full bg-white/10 px-10 py-3 font-semibold no-underline transition hover:bg-white/20"
+                <form
+                  action={async () => {
+                    "use server";
+                    await signOut();
+                  }}
                 >
-                  Sign out
-                </Link>
+                  <button
+                    type="submit"
+                    className="rounded-full bg-white/10 px-10 py-3 font-semibold transition hover:bg-white/20"
+                  >
+                    Sign out
+                  </button>
+                </form>
               </div>
             </>
           ) : (

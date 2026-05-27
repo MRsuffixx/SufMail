@@ -69,7 +69,10 @@ export class KeyManagementService {
       if (dupErr.code !== "P2002") throw err;
     }
     const saved = await db.userKeySalt.findUnique({ where: { userId } });
-    return Buffer.from(saved!.salt, "hex");
+    if (!saved) {
+      throw new Error(`Failed to get or create salt for user ${userId}`);
+    }
+    return Buffer.from(saved.salt, "hex");
   }
 
   /**

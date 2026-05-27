@@ -104,7 +104,8 @@ export class RateLimitService {
 
     const attempts = result[1];
 
-    if (userId) {
+    // Only increment user counter if not locked out (moved into Lua script logic)
+    if (userId && result[0] === 0) {
       const userKey = `bf:user:${userId}`;
       await redis.incr(userKey);
       await redis.expire(userKey, bf.lockoutDurationSeconds);

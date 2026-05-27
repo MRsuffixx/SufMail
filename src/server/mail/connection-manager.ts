@@ -35,10 +35,7 @@ class ImapConnectionManagerClass {
   /**
    * Starts an IDLE connection for a single account.
    */
-  start(account: Parameters<typeof db.mailAccount.findMany>[0] extends infer _T
-    ? import("../../../generated/prisma").MailAccount
-    : never
-  ): void {
+  start(account: import("../../../generated/prisma").MailAccount): void {
     if (this.connections.has(account.id)) return;
     try {
       const service = new ImapIdleService(account);
