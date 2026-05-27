@@ -10,6 +10,24 @@ import { createTRPCRouter, protectedProcedure } from "~/server/api/trpc";
 import { db } from "~/server/db";
 import { enqueueSendJob } from "~/server/queue/client";
 import { syncLogger } from "~/lib/logger";
+import DOMPurify from "dompurify";
+
+// Sanitize HTML to prevent XSS attacks
+function sanitizeHtml(html: string): string {
+  return DOMPurify.sanitize(html, {
+    ALLOWED_TAGS: [
+      "p", "br", "strong", "b", "em", "i", "u", "s", "strike",
+      "h1", "h2", "h3", "h4", "h5", "h6",
+      "ul", "ol", "li",
+      "blockquote", "pre", "code",
+      "a", "img",
+      "table", "thead", "tbody", "tr", "th", "td",
+      "span", "div",
+    ],
+    ALLOWED_ATTR: ["href", "src", "alt", "class", "style", "target"],
+    ALLOW_DATA_ATTR: false,
+  });
+}
 
 const emailAddressSchema = z.object({
   email: z.string().email(),
@@ -100,7 +118,10 @@ export const draftsRouter = createTRPCRouter({
     )
     .mutation(async ({ ctx, input }) => {
       const { session } = ctx;
-      const { id, ...data } = input;
+      const { id, bodyHtml, ...rest } = input;
+
+      // Sanitize HTML to prevent XSS
+      const sanitizedBodyHtml = bodyHtml ? sanitizeHtml(bodyHtml) : bodyHtml;
 
       if (id) {
         // Update existing draft
@@ -114,8 +135,9 @@ export const draftsRouter = createTRPCRouter({
         return db.draft.update({
           where: { id },
           data: {
-            ...data,
-            scheduledAt: data.scheduledAt ? new Date(data.scheduledAt) : null,
+            ...rest,
+            bodyHtml: sanitizedBodyHtml,
+            scheduledAt: rest.scheduledAt ? new Date(rest.scheduledAt) : null,
           },
         });
       }
@@ -124,8 +146,9 @@ export const draftsRouter = createTRPCRouter({
       return db.draft.create({
         data: {
           userId: session.user.id,
-          ...data,
-          scheduledAt: data.scheduledAt ? new Date(data.scheduledAt) : null,
+          ...rest,
+          bodyHtml: sanitizedBodyHtml,
+          scheduledAt: rest.scheduledAt ? new Date(rest.scheduledAt) : null,
         },
       });
     }),
