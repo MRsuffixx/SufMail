@@ -293,3 +293,28 @@ PRs welcome! Please ensure:
 - Zod validation on all tRPC inputs
 - Tests for new utility functions
 - Config-driven behavior (no hardcoded values)
+
+---
+
+## Docker Deployment
+
+### Quick Start
+1. Clone the repo
+2. `cp .env.docker.example .env`
+3. `make build`
+4. `make start`
+5. Open http://localhost (install wizard will appear)
+6. Complete the wizard — takes ~2 minutes
+7. You're done.
+
+### Development
+`make dev`     # hot reload, mailhog on :8025, db on :5432
+
+### Reset Installer (without wiping data)
+`make reset-install`
+
+### Logs
+`make logs`
+
+### Database Shell
+`make db-shell`

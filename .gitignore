@@ -62,6 +62,11 @@ coverage/
 .env.*
 !.env.example
 !.env.sample
+!.env.docker.example
+
+# Install lock
+install.lock
+install.lock.json
 
 apps/**/.env
 packages/**/.env
