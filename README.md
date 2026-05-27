@@ -1,5 +1,5 @@
 # MailForge
-
+# It is not yet ready for use, and none of its features have been tested. Please do not use it for anything other than testing until the stable version is released—at least, I don’t recommend it.
 > A highly advanced, production-grade, fully configurable open-source webmail application built with the T3 Stack.
 
 ![MailForge](https://img.shields.io/badge/T3-Stack-purple?style=flat-square)
