@@ -69,6 +69,16 @@ export function Compose({ draftId, mailAccountId, replyTo, forwardFrom, onClose 
   const fileInputRef = useRef<HTMLInputElement>(null);
   const { addToast } = useToastStore();
   const { closeWindow } = useWindowStore();
+  // Track blob URLs for cleanup
+  const attachmentBlobUrlsRef = useRef<Set<string>>(new Set());
+
+  // Cleanup blob URLs on unmount
+  useEffect(() => {
+    return () => {
+      attachmentBlobUrlsRef.current.forEach((url) => URL.revokeObjectURL(url));
+      attachmentBlobUrlsRef.current.clear();
+    };
+  }, []);
 
   const sendMessageMutation = api.mail.sendMessage.useMutation({
     onSuccess: () => {
@@ -136,9 +146,11 @@ export function Compose({ draftId, mailAccountId, replyTo, forwardFrom, onClose 
       if (!fileToUpload) return;
 
       setTimeout(() => {
+        const blobUrl = URL.createObjectURL(fileToUpload);
+        attachmentBlobUrlsRef.current.add(blobUrl);
         setAttachments((prev) =>
           prev.map((a) =>
-            a.id === attachment.id ? { ...a, progress: 100, status: "complete" as const, url: URL.createObjectURL(fileToUpload) } : a
+            a.id === attachment.id ? { ...a, progress: 100, status: "complete" as const, url: blobUrl } : a
           )
         );
       }, 1000);
@@ -455,7 +467,14 @@ export function Compose({ draftId, mailAccountId, replyTo, forwardFrom, onClose 
                 <div className="h-2 w-2 rounded-full bg-yellow-500 animate-pulse" />
               )}
               {attachment.status === "complete" && (
-                <button onClick={() => setAttachments((prev) => prev.filter((a) => a.id !== attachment.id))}>
+                <button onClick={() => {
+                  // Revoke blob URL when attachment is removed
+                  if (attachment.url) {
+                    URL.revokeObjectURL(attachment.url);
+                    attachmentBlobUrlsRef.current.delete(attachment.url);
+                  }
+                  setAttachments((prev) => prev.filter((a) => a.id !== attachment.id));
+                }}>
                   <X className="h-3 w-3" />
                 </button>
               )}

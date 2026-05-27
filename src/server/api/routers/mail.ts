@@ -612,7 +612,7 @@ export const mailRouter = createTRPCRouter({
    * Get a thread with all its messages.
    */
   getThread: protectedProcedure
-    .input(z.object({ threadId: z.string() }))
+    .input(z.object({ threadId: z.string().cuid() }))
     .query(async ({ ctx, input }) => {
       const { session } = ctx;
 

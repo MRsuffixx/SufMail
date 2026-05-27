@@ -35,9 +35,16 @@ export function AppLayout({ labels = [] }: AppLayoutProps) {
   const { openWindow } = useWindowStore();
 
   const [selectedMessage, setSelectedMessageLocal] = useState<FullMessage | null>(null);
+  // Track blob URLs for cleanup
+  const attachmentUrlsRef = useRef<Set<string>>(new Set());
 
   useEffect(() => {
     setMessages(mockMessages);
+    // Cleanup blob URLs on unmount
+    return () => {
+      attachmentUrlsRef.current.forEach((url) => URL.revokeObjectURL(url));
+      attachmentUrlsRef.current.clear();
+    };
   }, [setMessages]);
 
   const handleMessageClick = useCallback(

@@ -98,7 +98,7 @@ export const contactsRouter = createTRPCRouter({
   update: protectedProcedure
     .input(
       z.object({
-        id: z.string(),
+        id: z.string().cuid(),
         email: z.string().email().optional(),
         name: z.string().optional(),
         company: z.string().optional(),
@@ -123,7 +123,7 @@ export const contactsRouter = createTRPCRouter({
    * Delete a contact.
    */
   delete: protectedProcedure
-    .input(z.object({ id: z.string() }))
+    .input(z.object({ id: z.string().cuid() }))
     .mutation(async ({ ctx, input }) => {
       const { session } = ctx;
 
@@ -243,6 +243,15 @@ function formatVCard(c: {
   phone?: string | null;
   notes?: string | null;
 }): string {
+  // Escape special characters per RFC 6328: backslash, newline, comma, semicolon
+  const escapeVCard = (str: string): string => {
+    return str
+      .replace(/\\/g, "\\\\")
+      .replace(/\n/g, "\\n")
+      .replace(/,/g, "\\,")
+      .replace(/;/g, "\\;");
+  };
+
   const lines = [
     "BEGIN:VCARD",
     "VERSION:3.0",
@@ -250,9 +259,9 @@ function formatVCard(c: {
     `EMAIL:${c.email}`,
   ];
 
-  if (c.company) lines.push(`ORG:${c.company}`);
-  if (c.phone) lines.push(`TEL:${c.phone}`);
-  if (c.notes) lines.push(`NOTE:${c.notes.replace(/\n/g, "\\n")}`);
+  if (c.company) lines.push(`ORG:${escapeVCard(c.company)}`);
+  if (c.phone) lines.push(`TEL:${escapeVCard(c.phone)}`);
+  if (c.notes) lines.push(`NOTE:${escapeVCard(c.notes)}`);
 
   lines.push("END:VCARD");
   return lines.join("\r\n");
