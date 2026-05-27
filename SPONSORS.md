@@ -2,8 +2,8 @@
 
 If MailForge saves you time or you want to support its development, consider:
 
-- **GitHub Sponsors**: [sponsor link]
-- **Open Collective**: [link]
+- **GitHub Sponsors**: I wish someone would sponsor us :(
+- **Open Collective**: I wish someone would sponsor us :(
 
 ## Corporate Sponsorship
 
