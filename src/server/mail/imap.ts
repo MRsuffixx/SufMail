@@ -257,7 +257,8 @@ export class ImapService {
 
   /**
    * Deletes messages by moving them to the Trash mailbox.
-   * Falls back to adding \\Deleted flag + expunge if no Trash folder.
+   * If no Trash mailbox exists, adds \Deleted flag without expunge (soft delete).
+   * The caller should handle permanent deletion separately.
    */
   async deleteMessage(uids: number[], mailbox = "INBOX"): Promise<void> {
     const client = await this.ensureConnected();
@@ -269,10 +270,12 @@ export class ImapService {
     if (trashMailbox) {
       await this.moveMessage(uids, trashMailbox.path, mailbox);
     } else {
+      // No trash folder: mark as deleted without expunge
+      // This is a soft delete - messages remain until explicitly expunged
       await client.mailboxOpen(mailbox);
       await client.messageFlagsAdd(uids.join(","), ["\\Deleted"], { uid: true });
-      await client.messageDelete(uids.join(","), { uid: true });
     }
+  }
   }
 
   // ─── Connection Test ──────────────────────────────────────────────────────

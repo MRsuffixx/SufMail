@@ -669,7 +669,10 @@ export const mailRouter = createTRPCRouter({
                   lt:
                     (
                       await db.thread.findUnique({
-                        where: { id: cursor },
+                        where: {
+                          id: cursor,
+                          messages: { some: { mailAccount: { userId: session.user.id } } },
+                        },
                         select: { lastMessageAt: true },
                       })
                     )?.lastMessageAt ?? new Date(),

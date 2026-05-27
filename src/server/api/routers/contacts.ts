@@ -55,7 +55,7 @@ export const contactsRouter = createTRPCRouter({
    * Get a single contact by ID.
    */
   get: protectedProcedure
-    .input(z.object({ id: z.string() }))
+    .input(z.object({ id: z.string().cuid() }))
     .query(async ({ ctx, input }) => {
       const { session } = ctx;
       const contact = await db.contact.findUnique({

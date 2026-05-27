@@ -126,11 +126,20 @@ export async function enqueueSendJob(
 
 /**
  * Enqueues a notification job.
+ * Uses content-based job ID for deduplication within similar time windows.
  */
 export async function enqueueNotification(
   data: NotificationJobData,
 ): Promise<void> {
+  // Create a content-based hash for deduplication
+  const contentHash = await crypto.subtle.digest(
+    "SHA-256",
+    new TextEncoder().encode(JSON.stringify(data)),
+  );
+  const hashArray = Array.from(new Uint8Array(contentHash));
+  const hashHex = hashArray.slice(0, 8).map((b) => b.toString(16).padStart(2, "0")).join("");
+
   await notificationQueue.add("notify", data, {
-    jobId: `notify:${data.userId}:${data.type}:${Date.now()}`,
+    jobId: `notify:${data.userId}:${data.type}:${hashHex}`,
   });
 }

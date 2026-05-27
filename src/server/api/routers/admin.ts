@@ -150,7 +150,7 @@ export const adminRouter = createTRPCRouter({
     }),
 
   /**
-   * Suspend a user (deletes all their sessions).
+   * Suspend a user (deletes all their sessions and disables their mail accounts).
    */
   suspendUser: adminProcedure
     .input(z.object({ userId: z.string().cuid() }))
@@ -161,7 +161,15 @@ export const adminRouter = createTRPCRouter({
           message: "Cannot suspend yourself",
         });
       }
-      await db.session.deleteMany({ where: { userId: input.userId } });
+
+      await db.$transaction([
+        db.session.deleteMany({ where: { userId: input.userId } }),
+        db.mailAccount.updateMany({
+          where: { userId: input.userId },
+          data: { isActive: false },
+        }),
+      ]);
+
       return { suspended: true };
     }),
 

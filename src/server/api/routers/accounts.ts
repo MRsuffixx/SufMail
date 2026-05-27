@@ -237,10 +237,12 @@ export const accountsRouter = createTRPCRouter({
           orderBy: { createdAt: "asc" },
         });
         if (next) {
-          await db.mailAccount.update({
-            where: { id: next.id },
-            data: { isDefault: true },
-          });
+          await db.$transaction(
+            db.mailAccount.update({
+              where: { id: next.id },
+              data: { isDefault: true },
+            }),
+          );
         }
       }
 

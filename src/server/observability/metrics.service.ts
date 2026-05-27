@@ -63,6 +63,7 @@ export const smtpErrorsTotal = new Counter({
 export const smtpLatencyMs = new Histogram({
   name: "mailforge_smtp_latency_ms",
   help: "SMTP send operation latency in milliseconds",
+  labelNames: ["account_id"] as const,
   buckets: [100, 250, 500, 1000, 2500, 5000],
   registers: [metricsRegistry],
 });
@@ -138,8 +139,12 @@ export function recordImapLatency(
 /**
  * Records SMTP send duration.
  */
-export function recordSmtpLatency(startTime: number): void {
-  smtpLatencyMs.observe(Date.now() - startTime);
+export function recordSmtpLatency(startTime: number, accountId?: string): void {
+  if (accountId) {
+    smtpLatencyMs.labels(accountId).observe(Date.now() - startTime);
+  } else {
+    smtpLatencyMs.observe(Date.now() - startTime);
+  }
 }
 
 /**
